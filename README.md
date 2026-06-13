@@ -11,6 +11,8 @@ A sleek, state-of-the-art, AMOLED-optimized gallery application for Android devi
 
 ## ✨ Features
 
+- 🔒 **Secure Hidden Vault (Biometric)**: Relocates hidden media files physically to secure private app directories, isolating them from public media scanners. Locks access to the folder via a custom secure PIN or fingerprint/biometric credentials.
+- 👆 **Google Photos Style Drag-to-Select**: Fast, responsive grid selection using custom gesture event interception. Drag to select multiple photos, swipe back to deselect (drag range undo), and enjoy proximity edge auto-scrolling.
 - 🧠 **On-Device AI Photo Editor**: Built with Google ML Kit. Perform fully offline, private image segmentations:
   - **Portrait Mode**: Isolate subjects and add custom Gaussian blur to backgrounds.
   - **Background Eraser**: Cut out subjects and export transparent PNGs directly to the device.
@@ -18,7 +20,7 @@ A sleek, state-of-the-art, AMOLED-optimized gallery application for Android devi
   - **Auto-Enhance**: One-tap histogram adjustment for brightness, contrast, and levels.
 - ⚡ **Dynamic Grid Zooming**: Pinch-to-zoom gestures dynamically scale the photos grid from **2** up to **8** columns with persistent state preservation.
 - 📁 **Smart Folder & Album Manager**: Easily organize, browse, and edit local device folders. Perform bulk operations on multiple items:
-  - **Move / Copy to Album**: Migrate or duplicate photos and videos into existing folders or custom new albums.
+  - **Move / Copy to Album**: Migrate or duplicate photos and videos into existing folders or custom new albums (correctly resolving device-captured media back to `DCIM/Camera`).
   - **Sequential Renaming**: Rename single images, or batch-rename multiple items with suffix ordering (e.g. `Name_1.jpg`, `Name_2.jpg`).
 - 📄 **Convert to PDF**: Export one or more selected images into a single multi-page PDF document saved locally (under `Documents/PhotoApp/`) and instantly share it.
 - 🖼️ **Set as Wallpaper**: Directly set any photo as the device home or lock screen wallpaper.
@@ -40,11 +42,12 @@ PhotoApp follows clean architecture principles utilizing MVVM, reactive programm
 ```text
 com.photoapp/
 ├── PhotoApp.kt                # Application class initializing Hilt and repositories
-├── MainActivity.kt            # Core Activity managing edge-to-edge layout & reactive permission states
+├── MainActivity.kt            # Core Activity managing edge-to-edge layout, biometric prompt logic & reactive permissions
 ├── data/
 │   ├── local/                 # Room database cache (SQLite configuration, entities, and DAOs)
 │   ├── media/                 # MediaStoreManager scanning and observing Android MediaStore API
 │   ├── repository/            # Unified data mapping and file operations (PhotoRepository)
+│   ├── security/              # HiddenSecurityManager managing vault PIN hashing and validation logic
 │   └── settings/              # ThemeSettingsManager managing configurations via SharedPreferences
 ├── di/
 │   └── AppModule.kt           # Dagger Hilt dependency injection modules
@@ -66,6 +69,7 @@ com.photoapp/
 - **Coil (with Video Extension)**: High-efficiency image and video frame decoding.
 - **Jetpack Media3 (ExoPlayer)**: Custom video player control and playback buffer setup.
 - **Google ML Kit (Subject Segmentation)**: AI segmentation maps processed strictly on-device.
+- **AndroidX Biometric API**: Secure hardware credential keychain access (fingerprint/credentials authentication).
 
 ---
 
