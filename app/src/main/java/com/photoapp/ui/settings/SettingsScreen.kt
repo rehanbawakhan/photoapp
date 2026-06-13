@@ -319,6 +319,16 @@ fun SettingsScreen(
                         title = "🎨 AMOLED Black & Accent Themes",
                         desc = "AMOLED Black optimization saves power on OLED screens. Customize your workspace with Red, Purple, Sky Blue, Deep Blue, or White accent colors."
                     )
+
+                    FeatureItem(
+                        title = "🔒 Secure Hidden Vault (Biometric)",
+                        desc = "Physically relocates files to isolated secure directories to hide them from the device's stock gallery and files. Authenticate access with a custom security PIN or fingerprint/biometric credentials."
+                    )
+
+                    FeatureItem(
+                        title = "👆 Google Photos Style Drag-to-Select",
+                        desc = "Hold and drag across the photo grid to select lists of items. Reverts selection on swipe back, and automatically scrolls the grid when your finger reaches the top or bottom edges."
+                    )
                 }
             }
 
@@ -363,6 +373,10 @@ fun SettingsScreen(
                     FeatureItem(
                         title = "📁 data/repository",
                         desc = "Contains PhotoRepository interface and its Hilt-bound implementation. Orchestrates database reads/writes, file system modifications (trash/delete), and maps flows for the UI."
+                    )
+                    FeatureItem(
+                        title = "📁 data/security",
+                        desc = "Contains HiddenSecurityManager which handles security operations for the Vault (PIN hashing, saving, and validation) using SharedPreferences."
                     )
                     FeatureItem(
                         title = "📁 data/settings",
@@ -441,6 +455,11 @@ fun SettingsScreen(
                         title = "🤖 Google ML Kit (Subject Segmentation)",
                         desc = "Powers the offline AI photo editor. Runs neural networks locally on the device's CPU/GPU to segment people, pets, or objects for background removal."
                     )
+
+                    FeatureItem(
+                        title = "🔒 AndroidX Biometric API",
+                        desc = "Handles fingerprint scanning and secure authentication integration using system hardware keychains to secure the private hidden folder."
+                    )
                 }
             }
 
@@ -485,6 +504,16 @@ fun SettingsScreen(
                     FeatureItem(
                         title = "🎨 Reactive Theme & Accent Styling",
                         desc = "The custom ThemeSettingsManager registers a persistent listener on SharedPreferences. As theme or accent values change, state flows emit updates, causing the custom PhotoAppTheme wrapper to recompose color schemes globally."
+                    )
+
+                    FeatureItem(
+                        title = "🛡️ Vault Isolation & Physical Moves",
+                        desc = "Hiding a photo moves the file from external storage to secure app storage and deletes its MediaStore index, completely hiding it from device scanning. Unhiding restores it to its original folder (including DCIM/Camera)."
+                    )
+
+                    FeatureItem(
+                        title = "👆 Compose Pointer Event Interception",
+                        desc = "Drag-to-select intercepts touch events in Compose's PointerEventPass.Initial pass. This allows the parent layout to capture swipe gestures for selection, while preserving simple clicks on the child items."
                     )
                 }
             }

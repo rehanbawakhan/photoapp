@@ -83,6 +83,10 @@ class GalleryViewModel @Inject constructor(
         }
     }
 
+    fun setSelectedIds(ids: Set<Long>) {
+        _selectedIds.value = ids
+    }
+
     fun selectAll() {
         val allIds = uiState.value.photos.map { it.id }.toSet()
         _selectedIds.value = allIds
@@ -183,6 +187,13 @@ class GalleryViewModel @Inject constructor(
             } else {
                 callback(false)
             }
+            clearSelection()
+        }
+    }
+
+    fun hideSelected() {
+        viewModelScope.launch {
+            repository.hidePhotos(_selectedIds.value.toList())
             clearSelection()
         }
     }

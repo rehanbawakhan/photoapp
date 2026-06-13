@@ -85,6 +85,10 @@ fun GalleryScreen(
                                 android.widget.Toast.makeText(context, "Failed to set wallpaper", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
+                    },
+                    onHide = {
+                        viewModel.hideSelected()
+                        android.widget.Toast.makeText(context, "Items hidden", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 )
             } else {
@@ -148,6 +152,7 @@ fun GalleryScreen(
                                 viewModel.toggleSelection(photo.id)
                             },
                             groupByDate = true,
+                            onSelectionChanged = { viewModel.setSelectedIds(it) },
                             modifier = Modifier.fillMaxSize()
                         )
                     }

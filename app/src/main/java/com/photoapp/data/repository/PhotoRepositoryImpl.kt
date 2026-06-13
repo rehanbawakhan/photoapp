@@ -62,12 +62,13 @@ class PhotoRepositoryImpl @Inject constructor(
             } else if (existing.dateModified != mediaPhoto.dateModified || 
                        existing.size != mediaPhoto.size || 
                        existing.path != mediaPhoto.path) {
-                // Modified photo: copy favorite/deleted states
+                // Modified photo: copy favorite/deleted/hidden states
                 toInsert.add(
                     mediaPhoto.copy(
                         isFavorite = existing.isFavorite,
                         isDeleted = existing.isDeleted,
-                        dateDeleted = existing.dateDeleted
+                        dateDeleted = existing.dateDeleted,
+                        isHidden = existing.isHidden
                     )
                 )
             }
@@ -76,7 +77,7 @@ class PhotoRepositoryImpl @Inject constructor(
         // Find deleted photos (exist in local DB but no longer in MediaStore)
         val mediaIds = mediaPhotos.map { it.id }.toSet()
         for (existing in existingPhotos) {
-            if (existing.id !in mediaIds) {
+            if (existing.id !in mediaIds && !existing.isHidden) {
                 toDelete.add(existing.id)
             }
         }
@@ -102,7 +103,10 @@ class PhotoRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setFavoriteMultiple(ids: List<Long>) {
-        photoDao.setFavoriteMultiple(ids)
+        val photos = ids.mapNotNull { photoDao.getPhotoById(it) }
+        if (photos.isEmpty()) return
+        val allAreFavorites = photos.all { it.isFavorite }
+        photoDao.setFavoriteMultiple(ids, !allAreFavorites)
     }
 
     // ── Trash ───────────────────────────────────────────────────────────
@@ -219,8 +223,7 @@ class PhotoRepositoryImpl @Inject constructor(
             val mimeType = photo.mimeType
             val originalName = photo.name
             
-            val subDir = if (mimeType.startsWith("video/")) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
-            val destDir = File(Environment.getExternalStoragePublicDirectory(subDir), targetAlbumName)
+            val destDir = getAlbumDirectory(targetAlbumName, mimeType)
             if (!destDir.exists()) destDir.mkdirs()
             
             val destFile = File(destDir, originalName)
@@ -264,8 +267,7 @@ class PhotoRepositoryImpl @Inject constructor(
             val mimeType = photo.mimeType
             val originalName = photo.name
             
-            val subDir = if (mimeType.startsWith("video/")) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
-            val destDir = File(Environment.getExternalStoragePublicDirectory(subDir), targetAlbumName)
+            val destDir = getAlbumDirectory(targetAlbumName, mimeType)
             if (!destDir.exists()) destDir.mkdirs()
             
             val destFile = File(destDir, originalName)
@@ -444,6 +446,127 @@ class PhotoRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    // ── Hidden ──────────────────────────────────────────────────────────
+
+    override fun getHiddenPhotos(): Flow<List<PhotoEntity>> {
+        return photoDao.getHiddenPhotos()
+    }
+
+    override suspend fun toggleHidden(id: Long) {
+        val photo = photoDao.getPhotoById(id) ?: return
+        if (photo.isHidden) {
+            unhidePhotos(listOf(id))
+        } else {
+            hidePhotos(listOf(id))
+        }
+    }
+
+    override suspend fun hidePhotos(ids: List<Long>): Unit = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val hiddenDir = context.getExternalFilesDir("Hidden") ?: File(context.filesDir, "Hidden")
+        if (!hiddenDir.exists()) hiddenDir.mkdirs()
+
+        for (id in ids) {
+            val photo = photoDao.getPhotoById(id) ?: continue
+            val sourceFile = File(photo.path)
+            if (!sourceFile.exists()) continue
+
+            val destFile = File(hiddenDir, photo.name)
+            var finalDestFile = destFile
+            if (finalDestFile.exists()) {
+                val extensionIndex = photo.name.lastIndexOf('.')
+                val nameWithoutExt = if (extensionIndex != -1) photo.name.substring(0, extensionIndex) else photo.name
+                val ext = if (extensionIndex != -1) photo.name.substring(extensionIndex) else ""
+                var count = 1
+                while (finalDestFile.exists()) {
+                    finalDestFile = File(hiddenDir, "${nameWithoutExt}_$count$ext")
+                    count++
+                }
+            }
+
+            try {
+                sourceFile.inputStream().use { input ->
+                    finalDestFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                resolver.delete(photo.contentUri, null, null)
+                if (sourceFile.exists()) {
+                    sourceFile.delete()
+                }
+
+                val updatedPhoto = photo.copy(
+                    uri = Uri.fromFile(finalDestFile).toString(),
+                    path = finalDestFile.absolutePath,
+                    isHidden = true
+                )
+                photoDao.updatePhoto(updatedPhoto)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    override suspend fun unhidePhotos(ids: List<Long>): Unit = withContext(Dispatchers.IO) {
+        for (id in ids) {
+            val photo = photoDao.getPhotoById(id) ?: continue
+            val sourceFile = File(photo.path)
+            if (!sourceFile.exists()) continue
+
+            val albumName = photo.bucketName ?: "Restored"
+            val destDir = getAlbumDirectory(albumName, photo.mimeType)
+            if (!destDir.exists()) destDir.mkdirs()
+
+            val destFile = File(destDir, photo.name)
+            var finalDestFile = destFile
+            if (finalDestFile.exists()) {
+                val extensionIndex = photo.name.lastIndexOf('.')
+                val nameWithoutExt = if (extensionIndex != -1) photo.name.substring(0, extensionIndex) else photo.name
+                val ext = if (extensionIndex != -1) photo.name.substring(extensionIndex) else ""
+                var count = 1
+                while (finalDestFile.exists()) {
+                    finalDestFile = File(destDir, "${nameWithoutExt}_$count$ext")
+                    count++
+                }
+            }
+
+            try {
+                sourceFile.inputStream().use { input ->
+                    finalDestFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                if (sourceFile.exists()) {
+                    sourceFile.delete()
+                }
+
+                photoDao.deletePhoto(photo)
+                scanFileWithTimeout(finalDestFile.absolutePath, photo.mimeType)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        syncPhotos()
+        syncAlbums()
+    }
+
+    override fun getHiddenCount(): Flow<Int> {
+        return photoDao.getHiddenCount()
+    }
+
+    private fun getAlbumDirectory(albumName: String, mimeType: String): File {
+        return if (albumName.equals("Camera", ignoreCase = true)) {
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera")
+        } else {
+            val subDir = if (mimeType.startsWith("video/")) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+            File(Environment.getExternalStoragePublicDirectory(subDir), albumName)
         }
     }
 }

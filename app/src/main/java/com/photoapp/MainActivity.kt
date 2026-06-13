@@ -49,7 +49,7 @@ import com.photoapp.ui.theme.PhotoAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
 
     private val PERMISSION_REQUEST_CODE = 100
     private val hasPermissionState = mutableStateOf(false)

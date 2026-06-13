@@ -67,6 +67,9 @@ accompanist-permissions = { group = "com.google.accompanist", name = "accompanis
 # ML Kit
 mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }
 
+# Biometric
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.1.0" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

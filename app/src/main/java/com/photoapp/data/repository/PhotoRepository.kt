@@ -43,6 +43,13 @@ interface PhotoRepository {
     suspend fun getDeleteIntentSender(ids: List<Long>): android.content.IntentSender?
     suspend fun deleteFromDatabaseMultiple(ids: List<Long>)
 
+    // Hidden
+    fun getHiddenPhotos(): Flow<List<PhotoEntity>>
+    suspend fun toggleHidden(id: Long)
+    suspend fun hidePhotos(ids: List<Long>)
+    suspend fun unhidePhotos(ids: List<Long>)
+    fun getHiddenCount(): Flow<Int>
+
     // Media Operations
     suspend fun copyPhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean
     suspend fun movePhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean

@@ -63,13 +63,15 @@ public final class PhotoDao_Impl implements PhotoDao {
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteAutoAlbums;
 
+  private final SharedSQLiteStatement __preparedStmtOfSetHidden;
+
   public PhotoDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfPhotoEntity = new EntityInsertionAdapter<PhotoEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `photos` (`id`,`uri`,`name`,`path`,`dateAdded`,`dateTaken`,`dateModified`,`size`,`width`,`height`,`mimeType`,`bucketId`,`bucketName`,`isFavorite`,`isDeleted`,`dateDeleted`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `photos` (`id`,`uri`,`name`,`path`,`dateAdded`,`dateTaken`,`dateModified`,`size`,`width`,`height`,`mimeType`,`bucketId`,`bucketName`,`isFavorite`,`isDeleted`,`dateDeleted`,`isHidden`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -105,6 +107,8 @@ public final class PhotoDao_Impl implements PhotoDao {
         } else {
           statement.bindLong(16, entity.getDateDeleted());
         }
+        final int _tmp_2 = entity.isHidden() ? 1 : 0;
+        statement.bindLong(17, _tmp_2);
       }
     };
     this.__insertionAdapterOfAlbumEntity = new EntityInsertionAdapter<AlbumEntity>(__db) {
@@ -160,7 +164,7 @@ public final class PhotoDao_Impl implements PhotoDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `photos` SET `id` = ?,`uri` = ?,`name` = ?,`path` = ?,`dateAdded` = ?,`dateTaken` = ?,`dateModified` = ?,`size` = ?,`width` = ?,`height` = ?,`mimeType` = ?,`bucketId` = ?,`bucketName` = ?,`isFavorite` = ?,`isDeleted` = ?,`dateDeleted` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `photos` SET `id` = ?,`uri` = ?,`name` = ?,`path` = ?,`dateAdded` = ?,`dateTaken` = ?,`dateModified` = ?,`size` = ?,`width` = ?,`height` = ?,`mimeType` = ?,`bucketId` = ?,`bucketName` = ?,`isFavorite` = ?,`isDeleted` = ?,`dateDeleted` = ?,`isHidden` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -196,7 +200,9 @@ public final class PhotoDao_Impl implements PhotoDao {
         } else {
           statement.bindLong(16, entity.getDateDeleted());
         }
-        statement.bindLong(17, entity.getId());
+        final int _tmp_2 = entity.isHidden() ? 1 : 0;
+        statement.bindLong(17, _tmp_2);
+        statement.bindLong(18, entity.getId());
       }
     };
     this.__updateAdapterOfAlbumEntity = new EntityDeletionOrUpdateAdapter<AlbumEntity>(__db) {
@@ -268,6 +274,14 @@ public final class PhotoDao_Impl implements PhotoDao {
       @NonNull
       public String createQuery() {
         final String _query = "DELETE FROM albums WHERE isCustom = 0";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfSetHidden = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE photos SET isHidden = ? WHERE id = ?";
         return _query;
       }
     };
@@ -571,8 +585,37 @@ public final class PhotoDao_Impl implements PhotoDao {
   }
 
   @Override
+  public Object setHidden(final long id, final boolean isHidden,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfSetHidden.acquire();
+        int _argIndex = 1;
+        final int _tmp = isHidden ? 1 : 0;
+        _stmt.bindLong(_argIndex, _tmp);
+        _argIndex = 2;
+        _stmt.bindLong(_argIndex, id);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfSetHidden.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Flow<List<PhotoEntity>> getAllPhotos() {
-    final String _sql = "SELECT * FROM photos WHERE isDeleted = 0 ORDER BY dateTaken DESC";
+    final String _sql = "SELECT * FROM photos WHERE isDeleted = 0 AND isHidden = 0 ORDER BY dateTaken DESC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<List<PhotoEntity>>() {
       @Override
@@ -596,6 +639,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -647,7 +691,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -665,7 +713,7 @@ public final class PhotoDao_Impl implements PhotoDao {
 
   @Override
   public Object getAllPhotosList(final Continuation<? super List<PhotoEntity>> $completion) {
-    final String _sql = "SELECT * FROM photos WHERE isDeleted = 0 ORDER BY dateTaken DESC";
+    final String _sql = "SELECT * FROM photos";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
     return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<PhotoEntity>>() {
@@ -690,6 +738,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -741,7 +790,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -782,6 +835,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final PhotoEntity _result;
           if (_cursor.moveToFirst()) {
             final long _tmpId;
@@ -832,7 +886,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _result = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _result = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
           } else {
             _result = null;
           }
@@ -873,6 +931,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final PhotoEntity _result;
           if (_cursor.moveToFirst()) {
             final long _tmpId;
@@ -923,7 +982,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _result = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _result = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
           } else {
             _result = null;
           }
@@ -942,7 +1005,7 @@ public final class PhotoDao_Impl implements PhotoDao {
 
   @Override
   public Flow<List<PhotoEntity>> getFavoritePhotos() {
-    final String _sql = "SELECT * FROM photos WHERE isFavorite = 1 AND isDeleted = 0 ORDER BY dateTaken DESC";
+    final String _sql = "SELECT * FROM photos WHERE isFavorite = 1 AND isDeleted = 0 AND isHidden = 0 ORDER BY dateTaken DESC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<List<PhotoEntity>>() {
       @Override
@@ -966,6 +1029,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1017,7 +1081,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1059,6 +1127,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1110,7 +1179,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1156,6 +1229,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1207,7 +1281,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1328,7 +1406,7 @@ public final class PhotoDao_Impl implements PhotoDao {
   public Flow<List<PhotoEntity>> getPhotosByBucket(final String bucketId) {
     final String _sql = "\n"
             + "        SELECT * FROM photos \n"
-            + "        WHERE bucketId = ? AND isDeleted = 0 \n"
+            + "        WHERE bucketId = ? AND isDeleted = 0 AND isHidden = 0 \n"
             + "        ORDER BY dateTaken DESC\n"
             + "    ";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
@@ -1356,6 +1434,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1407,7 +1486,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1428,7 +1511,7 @@ public final class PhotoDao_Impl implements PhotoDao {
       final Continuation<? super List<PhotoEntity>> $completion) {
     final String _sql = "\n"
             + "        SELECT * FROM photos \n"
-            + "        WHERE bucketId = ? AND isDeleted = 0 \n"
+            + "        WHERE bucketId = ? AND isDeleted = 0 AND isHidden = 0 \n"
             + "        ORDER BY dateTaken DESC\n"
             + "    ";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
@@ -1457,6 +1540,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1508,7 +1592,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1524,7 +1612,7 @@ public final class PhotoDao_Impl implements PhotoDao {
   public Flow<List<PhotoEntity>> searchPhotos(final String query) {
     final String _sql = "\n"
             + "        SELECT * FROM photos \n"
-            + "        WHERE isDeleted = 0 AND (name LIKE '%' || ? || '%' OR path LIKE '%' || ? || '%')\n"
+            + "        WHERE isDeleted = 0 AND isHidden = 0 AND (name LIKE '%' || ? || '%' OR path LIKE '%' || ? || '%')\n"
             + "        ORDER BY dateTaken DESC\n"
             + "    ";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
@@ -1554,6 +1642,7 @@ public final class PhotoDao_Impl implements PhotoDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
           final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
           final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PhotoEntity _item;
@@ -1605,7 +1694,11 @@ public final class PhotoDao_Impl implements PhotoDao {
             } else {
               _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
             }
-            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted);
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
             _result.add(_item);
           }
           return _result;
@@ -1623,7 +1716,7 @@ public final class PhotoDao_Impl implements PhotoDao {
 
   @Override
   public Flow<Integer> getPhotoCount() {
-    final String _sql = "SELECT COUNT(*) FROM photos WHERE isDeleted = 0";
+    final String _sql = "SELECT COUNT(*) FROM photos WHERE isDeleted = 0 AND isHidden = 0";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<Integer>() {
       @Override
@@ -1685,7 +1778,136 @@ public final class PhotoDao_Impl implements PhotoDao {
 
   @Override
   public Flow<Integer> getFavoriteCount() {
-    final String _sql = "SELECT COUNT(*) FROM photos WHERE isFavorite = 1 AND isDeleted = 0";
+    final String _sql = "SELECT COUNT(*) FROM photos WHERE isFavorite = 1 AND isDeleted = 0 AND isHidden = 0";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<Integer>() {
+      @Override
+      @NonNull
+      public Integer call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Integer _result;
+          if (_cursor.moveToFirst()) {
+            final int _tmp;
+            _tmp = _cursor.getInt(0);
+            _result = _tmp;
+          } else {
+            _result = 0;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<List<PhotoEntity>> getHiddenPhotos() {
+    final String _sql = "SELECT * FROM photos WHERE isHidden = 1 AND isDeleted = 0 ORDER BY dateTaken DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<List<PhotoEntity>>() {
+      @Override
+      @NonNull
+      public List<PhotoEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfUri = CursorUtil.getColumnIndexOrThrow(_cursor, "uri");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfPath = CursorUtil.getColumnIndexOrThrow(_cursor, "path");
+          final int _cursorIndexOfDateAdded = CursorUtil.getColumnIndexOrThrow(_cursor, "dateAdded");
+          final int _cursorIndexOfDateTaken = CursorUtil.getColumnIndexOrThrow(_cursor, "dateTaken");
+          final int _cursorIndexOfDateModified = CursorUtil.getColumnIndexOrThrow(_cursor, "dateModified");
+          final int _cursorIndexOfSize = CursorUtil.getColumnIndexOrThrow(_cursor, "size");
+          final int _cursorIndexOfWidth = CursorUtil.getColumnIndexOrThrow(_cursor, "width");
+          final int _cursorIndexOfHeight = CursorUtil.getColumnIndexOrThrow(_cursor, "height");
+          final int _cursorIndexOfMimeType = CursorUtil.getColumnIndexOrThrow(_cursor, "mimeType");
+          final int _cursorIndexOfBucketId = CursorUtil.getColumnIndexOrThrow(_cursor, "bucketId");
+          final int _cursorIndexOfBucketName = CursorUtil.getColumnIndexOrThrow(_cursor, "bucketName");
+          final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
+          final int _cursorIndexOfIsDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "isDeleted");
+          final int _cursorIndexOfDateDeleted = CursorUtil.getColumnIndexOrThrow(_cursor, "dateDeleted");
+          final int _cursorIndexOfIsHidden = CursorUtil.getColumnIndexOrThrow(_cursor, "isHidden");
+          final List<PhotoEntity> _result = new ArrayList<PhotoEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final PhotoEntity _item;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final String _tmpUri;
+            _tmpUri = _cursor.getString(_cursorIndexOfUri);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpPath;
+            _tmpPath = _cursor.getString(_cursorIndexOfPath);
+            final long _tmpDateAdded;
+            _tmpDateAdded = _cursor.getLong(_cursorIndexOfDateAdded);
+            final long _tmpDateTaken;
+            _tmpDateTaken = _cursor.getLong(_cursorIndexOfDateTaken);
+            final long _tmpDateModified;
+            _tmpDateModified = _cursor.getLong(_cursorIndexOfDateModified);
+            final long _tmpSize;
+            _tmpSize = _cursor.getLong(_cursorIndexOfSize);
+            final int _tmpWidth;
+            _tmpWidth = _cursor.getInt(_cursorIndexOfWidth);
+            final int _tmpHeight;
+            _tmpHeight = _cursor.getInt(_cursorIndexOfHeight);
+            final String _tmpMimeType;
+            _tmpMimeType = _cursor.getString(_cursorIndexOfMimeType);
+            final String _tmpBucketId;
+            if (_cursor.isNull(_cursorIndexOfBucketId)) {
+              _tmpBucketId = null;
+            } else {
+              _tmpBucketId = _cursor.getString(_cursorIndexOfBucketId);
+            }
+            final String _tmpBucketName;
+            if (_cursor.isNull(_cursorIndexOfBucketName)) {
+              _tmpBucketName = null;
+            } else {
+              _tmpBucketName = _cursor.getString(_cursorIndexOfBucketName);
+            }
+            final boolean _tmpIsFavorite;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsFavorite);
+            _tmpIsFavorite = _tmp != 0;
+            final boolean _tmpIsDeleted;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsDeleted);
+            _tmpIsDeleted = _tmp_1 != 0;
+            final Long _tmpDateDeleted;
+            if (_cursor.isNull(_cursorIndexOfDateDeleted)) {
+              _tmpDateDeleted = null;
+            } else {
+              _tmpDateDeleted = _cursor.getLong(_cursorIndexOfDateDeleted);
+            }
+            final boolean _tmpIsHidden;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsHidden);
+            _tmpIsHidden = _tmp_2 != 0;
+            _item = new PhotoEntity(_tmpId,_tmpUri,_tmpName,_tmpPath,_tmpDateAdded,_tmpDateTaken,_tmpDateModified,_tmpSize,_tmpWidth,_tmpHeight,_tmpMimeType,_tmpBucketId,_tmpBucketName,_tmpIsFavorite,_tmpIsDeleted,_tmpDateDeleted,_tmpIsHidden);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<Integer> getHiddenCount() {
+    final String _sql = "SELECT COUNT(*) FROM photos WHERE isHidden = 1 AND isDeleted = 0";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"photos"}, new Callable<Integer>() {
       @Override
@@ -1746,20 +1968,25 @@ public final class PhotoDao_Impl implements PhotoDao {
   }
 
   @Override
-  public Object setFavoriteMultiple(final List<Long> ids,
+  public Object setFavoriteMultiple(final List<Long> ids, final boolean isFavorite,
       final Continuation<? super Unit> $completion) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override
       @NonNull
       public Unit call() throws Exception {
         final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
-        _stringBuilder.append("UPDATE photos SET isFavorite = 1 WHERE id IN (");
+        _stringBuilder.append("UPDATE photos SET isFavorite = ");
+        _stringBuilder.append("?");
+        _stringBuilder.append(" WHERE id IN (");
         final int _inputSize = ids.size();
         StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
         _stringBuilder.append(")");
         final String _sql = _stringBuilder.toString();
         final SupportSQLiteStatement _stmt = __db.compileStatement(_sql);
         int _argIndex = 1;
+        final int _tmp = isFavorite ? 1 : 0;
+        _stmt.bindLong(_argIndex, _tmp);
+        _argIndex = 2;
         for (long _item : ids) {
           _stmt.bindLong(_argIndex, _item);
           _argIndex++;
@@ -1820,6 +2047,66 @@ public final class PhotoDao_Impl implements PhotoDao {
       public Unit call() throws Exception {
         final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
         _stringBuilder.append("UPDATE photos SET isDeleted = 0, dateDeleted = null WHERE id IN (");
+        final int _inputSize = ids.size();
+        StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
+        _stringBuilder.append(")");
+        final String _sql = _stringBuilder.toString();
+        final SupportSQLiteStatement _stmt = __db.compileStatement(_sql);
+        int _argIndex = 1;
+        for (long _item : ids) {
+          _stmt.bindLong(_argIndex, _item);
+          _argIndex++;
+        }
+        __db.beginTransaction();
+        try {
+          _stmt.executeUpdateDelete();
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object hideMultiple(final List<Long> ids, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
+        _stringBuilder.append("UPDATE photos SET isHidden = 1 WHERE id IN (");
+        final int _inputSize = ids.size();
+        StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
+        _stringBuilder.append(")");
+        final String _sql = _stringBuilder.toString();
+        final SupportSQLiteStatement _stmt = __db.compileStatement(_sql);
+        int _argIndex = 1;
+        for (long _item : ids) {
+          _stmt.bindLong(_argIndex, _item);
+          _argIndex++;
+        }
+        __db.beginTransaction();
+        try {
+          _stmt.executeUpdateDelete();
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object unhideMultiple(final List<Long> ids, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
+        _stringBuilder.append("UPDATE photos SET isHidden = 0 WHERE id IN (");
         final int _inputSize = ids.size();
         StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
         _stringBuilder.append(")");

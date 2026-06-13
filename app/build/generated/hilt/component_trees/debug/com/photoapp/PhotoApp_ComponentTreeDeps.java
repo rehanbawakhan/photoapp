@@ -29,6 +29,8 @@ import hilt_aggregated_deps._com_photoapp_ui_favorites_FavoritesViewModel_HiltMo
 import hilt_aggregated_deps._com_photoapp_ui_favorites_FavoritesViewModel_HiltModules_KeyModule;
 import hilt_aggregated_deps._com_photoapp_ui_gallery_GalleryViewModel_HiltModules_BindsModule;
 import hilt_aggregated_deps._com_photoapp_ui_gallery_GalleryViewModel_HiltModules_KeyModule;
+import hilt_aggregated_deps._com_photoapp_ui_hidden_HiddenViewModel_HiltModules_BindsModule;
+import hilt_aggregated_deps._com_photoapp_ui_hidden_HiddenViewModel_HiltModules_KeyModule;
 import hilt_aggregated_deps._com_photoapp_ui_trash_TrashViewModel_HiltModules_BindsModule;
 import hilt_aggregated_deps._com_photoapp_ui_trash_TrashViewModel_HiltModules_KeyModule;
 import hilt_aggregated_deps._com_photoapp_ui_videos_VideosViewModel_HiltModules_BindsModule;
@@ -87,6 +89,8 @@ import hilt_aggregated_deps._dagger_hilt_android_internal_modules_HiltWrapper_Ac
         _com_photoapp_ui_favorites_FavoritesViewModel_HiltModules_KeyModule.class,
         _com_photoapp_ui_gallery_GalleryViewModel_HiltModules_BindsModule.class,
         _com_photoapp_ui_gallery_GalleryViewModel_HiltModules_KeyModule.class,
+        _com_photoapp_ui_hidden_HiddenViewModel_HiltModules_BindsModule.class,
+        _com_photoapp_ui_hidden_HiddenViewModel_HiltModules_KeyModule.class,
         _com_photoapp_ui_trash_TrashViewModel_HiltModules_BindsModule.class,
         _com_photoapp_ui_trash_TrashViewModel_HiltModules_KeyModule.class,
         _com_photoapp_ui_videos_VideosViewModel_HiltModules_BindsModule.class,

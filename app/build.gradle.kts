@@ -118,4 +118,7 @@ dependencies {
 
     // ML Kit (AI Editing)
     implementation(libs.mlkit.subject.segmentation)
+
+    // Biometric
+    implementation(libs.androidx.biometric)
 }

@@ -741,6 +741,25 @@ fun PhotoViewerScreen(
                                     }
                                 }
                             )
+                            if (currentPhoto.isHidden) {
+                                DropdownMenuItem(
+                                    text = { Text("Unhide") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.unhidePhoto(currentPhoto.id)
+                                        android.widget.Toast.makeText(context, "Photo unhidden", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text("Hide") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.hidePhoto(currentPhoto.id)
+                                        android.widget.Toast.makeText(context, "Photo hidden", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                         }
                     }
                 }

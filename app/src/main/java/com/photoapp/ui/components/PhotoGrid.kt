@@ -47,6 +47,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.photoapp.data.local.entities.PhotoEntity
@@ -103,6 +112,79 @@ fun groupPhotosByDate(photos: List<PhotoEntity>, columns: Int): List<PhotoGroup>
     }
 }
 
+private suspend fun PointerInputScope.detectGridDragSelectAfterLongPress(
+    scope: kotlinx.coroutines.CoroutineScope,
+    onDragStart: (Offset) -> Unit,
+    onDrag: (change: PointerInputChange, dragAmount: Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(pass = PointerEventPass.Initial)
+        var isLongPress = false
+        val longPressTimeout = viewConfiguration.longPressTimeoutMillis
+        
+        val job = scope.launch {
+            delay(longPressTimeout)
+            isLongPress = true
+            onDragStart(down.position)
+            down.consume()
+        }
+        
+        try {
+            val pointer = down.id
+            while (true) {
+                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                val dragChange = event.changes.firstOrNull { it.id == pointer } ?: break
+                
+                if (dragChange.pressed) {
+                    if (isLongPress) {
+                        dragChange.consume()
+                        val previousPosition = dragChange.previousPosition
+                        val currentPosition = dragChange.position
+                        onDrag(dragChange, currentPosition - previousPosition)
+                    } else {
+                        val touchSlop = viewConfiguration.touchSlop
+                        if ((dragChange.position - down.position).getDistance() > touchSlop) {
+                            job.cancel()
+                        }
+                    }
+                } else {
+                    break
+                }
+            }
+            job.cancel()
+            if (isLongPress) {
+                onDragEnd()
+            }
+        } catch (e: Exception) {
+            job.cancel()
+            onDragCancel()
+        }
+    }
+}
+
+private fun LazyGridState.getItemPhotoIndexAtOffset(
+    offset: Offset,
+    photos: List<PhotoEntity>
+): Int? {
+    val layoutInfo = layoutInfo
+    val visibleItemsInfo = layoutInfo.visibleItemsInfo
+    val x = offset.x
+    val y = offset.y
+    val item = visibleItemsInfo.find { item ->
+        x >= item.offset.x && x <= item.offset.x + item.size.width &&
+        y >= item.offset.y && y <= item.offset.y + item.size.height
+    } ?: return null
+
+    val key = item.key
+    if (key is Long) {
+        val idx = photos.indexOfFirst { it.id == key }
+        return if (idx != -1) idx else null
+    }
+    return null
+}
+
 @Composable
 fun PhotoGrid(
     photos: List<PhotoEntity>,
@@ -112,10 +194,105 @@ fun PhotoGrid(
     onPhotoLongClick: (PhotoEntity) -> Unit,
     groupByDate: Boolean = true,
     modifier: Modifier = Modifier,
-    columns: Int = 4
+    columns: Int = 4,
+    onSelectionChanged: ((Set<Long>) -> Unit)? = null
 ) {
     val gridState = rememberLazyGridState()
     var gridColumns by rememberSaveable { mutableIntStateOf(columns) }
+    val scope = rememberCoroutineScope()
+
+    val currentPhotosState = rememberUpdatedState(photos)
+    val currentSelectedIdsState = rememberUpdatedState(selectedIds)
+
+    var dragStartPhotoIndex by remember { mutableStateOf<Int?>(null) }
+    var dragCurrentPhotoIndex by remember { mutableStateOf<Int?>(null) }
+    var dragSelectMode by remember { mutableStateOf(true) }
+    var initialSelectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var currentDragPosition by remember { mutableStateOf<Offset?>(null) }
+
+    fun updateDragSelection(pointerOffset: Offset) {
+        val startIdx = dragStartPhotoIndex ?: return
+        val currentPhotos = currentPhotosState.value
+        val currentIdx = gridState.getItemPhotoIndexAtOffset(pointerOffset, currentPhotos) ?: dragCurrentPhotoIndex ?: startIdx
+        dragCurrentPhotoIndex = currentIdx
+
+        val newSelection = initialSelectedIds.toMutableSet().apply {
+            val range = if (startIdx <= currentIdx) startIdx..currentIdx else currentIdx..startIdx
+            for (i in range) {
+                if (i in currentPhotos.indices) {
+                    val id = currentPhotos[i].id
+                    if (dragSelectMode) add(id) else remove(id)
+                }
+            }
+        }
+        onSelectionChanged?.invoke(newSelection)
+    }
+
+    LaunchedEffect(currentDragPosition) {
+        val pos = currentDragPosition
+        if (pos != null && onSelectionChanged != null && dragStartPhotoIndex != null) {
+            val viewportHeight = gridState.layoutInfo.viewportSize.height
+            if (viewportHeight > 0) {
+                var scrollSpeed = 0f
+                if (pos.y < 150f) {
+                    scrollSpeed = -20f * ((150f - pos.y) / 150f).coerceIn(0.2f, 1.5f)
+                } else if (pos.y > viewportHeight - 150f) {
+                    scrollSpeed = 20f * ((pos.y - (viewportHeight - 150f)) / 150f).coerceIn(0.2f, 1.5f)
+                }
+                
+                if (scrollSpeed != 0f) {
+                    while (currentDragPosition != null) {
+                        gridState.scrollBy(scrollSpeed)
+                        currentDragPosition?.let { updateDragSelection(it) }
+                        delay(16)
+                    }
+                }
+            }
+        }
+    }
+
+    val dragSelectModifier = if (onSelectionChanged != null) {
+        Modifier.pointerInput(Unit) {
+            detectGridDragSelectAfterLongPress(
+                scope = scope,
+                onDragStart = { startOffset ->
+                    val currentPhotos = currentPhotosState.value
+                    val currentSelectedIds = currentSelectedIdsState.value
+                    val photoIndex = gridState.getItemPhotoIndexAtOffset(startOffset, currentPhotos)
+                    if (photoIndex != null) {
+                        dragStartPhotoIndex = photoIndex
+                        dragCurrentPhotoIndex = photoIndex
+                        val startPhotoId = currentPhotos[photoIndex].id
+                        dragSelectMode = startPhotoId !in currentSelectedIds
+                        initialSelectedIds = currentSelectedIds
+                        currentDragPosition = startOffset
+                        
+                        val newSelection = currentSelectedIds.toMutableSet().apply {
+                            if (dragSelectMode) add(startPhotoId) else remove(startPhotoId)
+                        }
+                        onSelectionChanged(newSelection)
+                    }
+                },
+                onDragEnd = {
+                    dragStartPhotoIndex = null
+                    dragCurrentPhotoIndex = null
+                    currentDragPosition = null
+                },
+                onDragCancel = {
+                    dragStartPhotoIndex = null
+                    dragCurrentPhotoIndex = null
+                    currentDragPosition = null
+                },
+                onDrag = { change, _ ->
+                    change.consume()
+                    currentDragPosition = change.position
+                    updateDragSelection(change.position)
+                }
+            )
+        }
+    } else {
+        Modifier
+    }
 
     // Gesture detection for pinch-to-zoom columns (runs in Initial pass to override scrolling)
     val zoomModifier = Modifier.pointerInput(gridColumns) {
@@ -199,7 +376,7 @@ fun PhotoGrid(
                 contentPadding = PaddingValues(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.fillMaxSize().then(zoomModifier)
+                modifier = Modifier.fillMaxSize().then(zoomModifier).then(dragSelectModifier)
             ) {
                 groups.forEach { group ->
                     // Date header
@@ -257,7 +434,11 @@ fun PhotoGrid(
                             isSelected = photo.id in selectedIds,
                             isSelectionMode = isSelectionMode,
                             onClick = { onPhotoClick(photo) },
-                            onLongClick = { onPhotoLongClick(photo) }
+                            onLongClick = {
+                                if (onSelectionChanged == null) {
+                                    onPhotoLongClick(photo)
+                                }
+                            }
                         )
                     }
                 }
@@ -269,7 +450,7 @@ fun PhotoGrid(
                 contentPadding = PaddingValues(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.fillMaxSize().then(zoomModifier)
+                modifier = Modifier.fillMaxSize().then(zoomModifier).then(dragSelectModifier)
             ) {
                 items(
                     items = photos,
@@ -280,7 +461,11 @@ fun PhotoGrid(
                         isSelected = photo.id in selectedIds,
                         isSelectionMode = isSelectionMode,
                         onClick = { onPhotoClick(photo) },
-                        onLongClick = { onPhotoLongClick(photo) }
+                        onLongClick = {
+                            if (onSelectionChanged == null) {
+                                onPhotoLongClick(photo)
+                            }
+                        }
                     )
                 }
             }

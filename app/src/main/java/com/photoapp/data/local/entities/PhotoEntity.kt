@@ -22,7 +22,8 @@ data class PhotoEntity(
     val bucketName: String? = null,
     val isFavorite: Boolean = false,
     val isDeleted: Boolean = false,
-    val dateDeleted: Long? = null
+    val dateDeleted: Long? = null,
+    val isHidden: Boolean = false
 ) {
     val contentUri: Uri
         get() = Uri.parse(uri)

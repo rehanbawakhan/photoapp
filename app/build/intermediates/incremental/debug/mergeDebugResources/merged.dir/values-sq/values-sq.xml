@@ -71,7 +71,9 @@
     <string name="common_open_on_phone">Hape në telefon</string>
     <string name="common_signin_button_text">Identifikohu</string>
     <string name="common_signin_button_text_long">Identifikohu me Google</string>
+    <string msgid="5912733858573823945" name="confirm_device_credential_password">"Përdor fjalëkalimin"</string>
     <string msgid="8038256446254964252" name="default_error_message">"Hyrje e pavlefshme"</string>
+    <string msgid="4776854077120974966" name="default_error_msg">"Gabim i panjohur"</string>
     <string msgid="6312721426453364202" name="default_popup_window_title">"Dritare kërcyese"</string>
     <string msgid="1890207353314751437" name="dropdown_menu">"Menyja me lëshim poshtë"</string>
     <string name="exo_controls_cc_disabled_description">Aktivizo titrat</string>
@@ -124,6 +126,16 @@
     <string name="exo_track_surround_7_point_1">Tingull rrethues 7.1</string>
     <string name="exo_track_unknown">E panjohur</string>
     <string name="exo_track_unknown_name">E panjohur (%1$s)</string>
+    <string msgid="1072308044213194243" name="fingerprint_dialog_touch_sensor">"Prek sensorin e gjurmës së gishtit"</string>
+    <string msgid="8216738333501875566" name="fingerprint_error_hw_not_available">"Hardueri i gjurmës së gishtit nuk mundësohet."</string>
+    <string msgid="6306988885793029438" name="fingerprint_error_hw_not_present">"Kjo pajisje nuk ka një sensor të gjurmës së gishtit"</string>
+    <string msgid="7291787166416782245" name="fingerprint_error_lockout">"Janë bërë shumë përpjekje. Provo përsëri më vonë."</string>
+    <string msgid="7520712796891883488" name="fingerprint_error_no_fingerprints">"Nuk ka asnjë gjurmë gishti të regjistruar."</string>
+    <string msgid="7627716295344353987" name="fingerprint_error_user_canceled">"Veprimi i gjurmës së gishtit u anulua nga përdoruesi."</string>
+    <string msgid="3873359464293253009" name="fingerprint_not_recognized">"Nuk njihet"</string>
+    <string msgid="3791785319221634505" name="generic_error_no_device_credential">"Nuk është vendosur kod PIN, motiv ose fjalëkalim."</string>
+    <string msgid="1807436368654974044" name="generic_error_no_keyguard">"Kjo pajisje nuk e mbështet kodin PIN, motivin ose fjalëkalimin."</string>
+    <string msgid="7309881387583143581" name="generic_error_user_canceled">"Vërtetimi u anulua nga përdoruesi."</string>
     <string msgid="6827826412747255547" name="in_progress">"Në vazhdim"</string>
     <string msgid="7933458017204019916" name="indeterminate">"Pjesërisht e shënuar"</string>
     <string msgid="2988463736136100848" name="m3c_bottom_sheet_collapse_description">"Palos fletën e poshtme"</string>

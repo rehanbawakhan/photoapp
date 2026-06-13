@@ -72,12 +72,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.filled.VisibilityOff
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumsScreen(
     onPhotoClick: (Long, String) -> Unit,
     onTrashClick: () -> Unit,
+    onHiddenClick: () -> Unit,
     bottomPadding: Dp = 0.dp,
     viewModel: AlbumsViewModel = hiltViewModel()
 ) {
@@ -126,6 +128,7 @@ fun AlbumsScreen(
                     onPhotoLongClick = { photoId ->
                         viewModel.toggleSelection(photoId)
                     },
+                    onSelectionChanged = { viewModel.setSelectedIds(it) },
                     onCloseSelection = { viewModel.clearSelection() },
                     onSelectAll = { viewModel.selectAll() },
                     onDeleteSelection = { viewModel.deleteSelected() },
@@ -144,6 +147,7 @@ fun AlbumsScreen(
                             }
                         }
                     },
+                    onHideSelection = { viewModel.hideSelected() },
                     bottomPadding = bottomPadding
                 )
             } else {
@@ -151,8 +155,10 @@ fun AlbumsScreen(
                 AlbumGridView(
                     albums = uiState.albums,
                     trashCount = uiState.trashCount,
+                    hiddenCount = uiState.hiddenCount,
                     onAlbumClick = { viewModel.selectAlbum(it.id) },
                     onTrashClick = onTrashClick,
+                    onHiddenClick = onHiddenClick,
                     bottomPadding = bottomPadding
                 )
             }
@@ -247,8 +253,10 @@ fun AlbumsScreen(
 private fun AlbumGridView(
     albums: List<AlbumEntity>,
     trashCount: Int,
+    hiddenCount: Int,
     onAlbumClick: (AlbumEntity) -> Unit,
     onTrashClick: () -> Unit,
+    onHiddenClick: () -> Unit,
     bottomPadding: Dp = 0.dp
 ) {
     val gridState = rememberLazyGridState()
@@ -301,6 +309,15 @@ private fun AlbumGridView(
                         onClick = onTrashClick
                     )
                 }
+
+                item(
+                    key = "hidden_button",
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
+                    HiddenCard(
+                        onClick = onHiddenClick
+                    )
+                }
             }
 
             VerticalScrollbar(
@@ -314,6 +331,50 @@ private fun AlbumGridView(
                     albums.getOrNull(index)?.name ?: ""
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun HiddenCard(
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.VisibilityOff,
+                contentDescription = "Hidden",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = "Hidden",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Hidden pictures and videos",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -463,6 +524,7 @@ private fun AlbumDetailView(
     onBack: () -> Unit,
     onPhotoClick: (Long) -> Unit,
     onPhotoLongClick: (Long) -> Unit,
+    onSelectionChanged: (Set<Long>) -> Unit,
     onCloseSelection: () -> Unit,
     onSelectAll: () -> Unit,
     onDeleteSelection: () -> Unit,
@@ -473,6 +535,7 @@ private fun AlbumDetailView(
     onRenameSelection: () -> Unit,
     onConvertToPdfSelection: () -> Unit,
     onSetAsWallpaperSelection: () -> Unit,
+    onHideSelection: () -> Unit,
     bottomPadding: Dp = 0.dp
 ) {
     Scaffold(
@@ -490,7 +553,8 @@ private fun AlbumDetailView(
                     onCopyToAlbum = onCopyToAlbumSelection,
                     onRename = onRenameSelection,
                     onConvertToPdf = onConvertToPdfSelection,
-                    onSetAsWallpaper = onSetAsWallpaperSelection
+                    onSetAsWallpaper = onSetAsWallpaperSelection,
+                    onHide = onHideSelection
                 )
             } else {
                 TopAppBar(
@@ -530,6 +594,7 @@ private fun AlbumDetailView(
             onPhotoClick = { onPhotoClick(it.id) },
             onPhotoLongClick = { onPhotoLongClick(it.id) },
             groupByDate = true,
+            onSelectionChanged = onSelectionChanged,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)

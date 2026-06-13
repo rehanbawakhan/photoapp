@@ -71,7 +71,9 @@
     <string name="common_open_on_phone">ስልክ ላይ ክፈት</string>
     <string name="common_signin_button_text">ግባ</string>
     <string name="common_signin_button_text_long">በGoogle ይግቡ</string>
+    <string msgid="5912733858573823945" name="confirm_device_credential_password">"የይለፍ ቃል ተጠቀም"</string>
     <string msgid="8038256446254964252" name="default_error_message">"ልክ ያልሆነ ግቤት"</string>
+    <string msgid="4776854077120974966" name="default_error_msg">"ያልታወቀ ስህተት"</string>
     <string msgid="6312721426453364202" name="default_popup_window_title">"ብቅ-ባይ መስኮት"</string>
     <string msgid="1890207353314751437" name="dropdown_menu">"ተቆልቋይ ምናሌ"</string>
     <string name="exo_controls_cc_disabled_description">የግርጌ ጽሑፎችን አንቃ</string>
@@ -124,6 +126,16 @@
     <string name="exo_track_surround_7_point_1">7.1 የዙሪያ ድምፅ</string>
     <string name="exo_track_unknown">ያልታወቀ</string>
     <string name="exo_track_unknown_name">ያልታወቁ (%1$s)</string>
+    <string msgid="1072308044213194243" name="fingerprint_dialog_touch_sensor">"የጣት አሻራ ዳሳሹን ይንኩ"</string>
+    <string msgid="8216738333501875566" name="fingerprint_error_hw_not_available">"የጣት አሻራ ሃርድዌር የለም።"</string>
+    <string msgid="6306988885793029438" name="fingerprint_error_hw_not_present">"ይህ መሣሪያ የጣት አሻራ ዳሳሽ የለውም"</string>
+    <string msgid="7291787166416782245" name="fingerprint_error_lockout">"በጣም ብዙ ሙከራዎች። እባክዎ ቆይተው እንደገና ይሞክሩ።"</string>
+    <string msgid="7520712796891883488" name="fingerprint_error_no_fingerprints">"ምንም የጣት አሻራዎች አልተመዘገቡም።"</string>
+    <string msgid="7627716295344353987" name="fingerprint_error_user_canceled">"የጣት አሻራ ክወና በተጠቃሚ ተሰርዟል።"</string>
+    <string msgid="3873359464293253009" name="fingerprint_not_recognized">"አልታወቀም"</string>
+    <string msgid="3791785319221634505" name="generic_error_no_device_credential">"ምንም ፒን፣ ሥርዓተ ጥለት ወይም የይለፍ ቃል አልተቀናበረም።"</string>
+    <string msgid="1807436368654974044" name="generic_error_no_keyguard">"ይህ መሣሪያ ፒን፣ ስርዓተ-ጥለት ወይም የይለፍ ቃል አይደግፍም።"</string>
+    <string msgid="7309881387583143581" name="generic_error_user_canceled">"ማረጋገጫ በተጠቃሚ ተሰርዟል።"</string>
     <string msgid="6827826412747255547" name="in_progress">"በሂደት ላይ"</string>
     <string msgid="7933458017204019916" name="indeterminate">"በከፊል የተፈተሸ"</string>
     <string msgid="2988463736136100848" name="m3c_bottom_sheet_collapse_description">"የግርጌ ሉህን ይሰብስቡ"</string>

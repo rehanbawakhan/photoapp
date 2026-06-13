@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,6 +53,11 @@ enum class EmptyStateType(
         icon = Icons.Outlined.Delete,
         title = "Trash is empty",
         subtitle = "Deleted photos will appear here for 30 days"
+    ),
+    HIDDEN(
+        icon = Icons.Outlined.VisibilityOff,
+        title = "No hidden media",
+        subtitle = "Hidden photos and videos will appear here"
     )
 }
 

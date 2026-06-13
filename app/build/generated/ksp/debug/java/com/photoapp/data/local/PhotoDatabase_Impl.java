@@ -34,10 +34,10 @@ public final class PhotoDatabase_Impl extends PhotoDatabase {
     final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `photos` (`id` INTEGER NOT NULL, `uri` TEXT NOT NULL, `name` TEXT NOT NULL, `path` TEXT NOT NULL, `dateAdded` INTEGER NOT NULL, `dateTaken` INTEGER NOT NULL, `dateModified` INTEGER NOT NULL, `size` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `bucketId` TEXT, `bucketName` TEXT, `isFavorite` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `dateDeleted` INTEGER, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `photos` (`id` INTEGER NOT NULL, `uri` TEXT NOT NULL, `name` TEXT NOT NULL, `path` TEXT NOT NULL, `dateAdded` INTEGER NOT NULL, `dateTaken` INTEGER NOT NULL, `dateModified` INTEGER NOT NULL, `size` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `bucketId` TEXT, `bucketName` TEXT, `isFavorite` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `dateDeleted` INTEGER, `isHidden` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `albums` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `coverPhotoUri` TEXT, `photoCount` INTEGER NOT NULL, `isCustom` INTEGER NOT NULL, `dateCreated` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b71f4b113f03a0fc31213dd541530978')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'db08b149069ab04c2f80603333c37e67')");
       }
 
       @Override
@@ -87,7 +87,7 @@ public final class PhotoDatabase_Impl extends PhotoDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsPhotos = new HashMap<String, TableInfo.Column>(16);
+        final HashMap<String, TableInfo.Column> _columnsPhotos = new HashMap<String, TableInfo.Column>(17);
         _columnsPhotos.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPhotos.put("uri", new TableInfo.Column("uri", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPhotos.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -104,6 +104,7 @@ public final class PhotoDatabase_Impl extends PhotoDatabase {
         _columnsPhotos.put("isFavorite", new TableInfo.Column("isFavorite", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPhotos.put("isDeleted", new TableInfo.Column("isDeleted", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPhotos.put("dateDeleted", new TableInfo.Column("dateDeleted", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPhotos.put("isHidden", new TableInfo.Column("isHidden", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysPhotos = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesPhotos = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoPhotos = new TableInfo("photos", _columnsPhotos, _foreignKeysPhotos, _indicesPhotos);
@@ -131,7 +132,7 @@ public final class PhotoDatabase_Impl extends PhotoDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "b71f4b113f03a0fc31213dd541530978", "469c6b45831e6b96b4a71cc9d2ebbc00");
+    }, "db08b149069ab04c2f80603333c37e67", "c2b61738c529105a0b5dabae5d77de81");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

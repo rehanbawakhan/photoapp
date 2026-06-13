@@ -6,6 +6,7 @@ import com.photoapp.ui.albums.AlbumsViewModel_HiltModules;
 import com.photoapp.ui.editor.EditorViewModel_HiltModules;
 import com.photoapp.ui.favorites.FavoritesViewModel_HiltModules;
 import com.photoapp.ui.gallery.GalleryViewModel_HiltModules;
+import com.photoapp.ui.hidden.HiddenViewModel_HiltModules;
 import com.photoapp.ui.trash.TrashViewModel_HiltModules;
 import com.photoapp.ui.videos.VideosViewModel_HiltModules;
 import com.photoapp.ui.viewer.PhotoViewerViewModel_HiltModules;
@@ -165,6 +166,7 @@ public final class PhotoApp_HiltComponents {
           EditorViewModel_HiltModules.KeyModule.class,
           FavoritesViewModel_HiltModules.KeyModule.class,
           GalleryViewModel_HiltModules.KeyModule.class,
+          HiddenViewModel_HiltModules.KeyModule.class,
           HiltWrapper_ActivityRetainedComponentManager_LifecycleModule.class,
           HiltWrapper_SavedStateHandleModule.class,
           ActivityCBuilderModule.class,
@@ -211,6 +213,7 @@ public final class PhotoApp_HiltComponents {
           EditorViewModel_HiltModules.BindsModule.class,
           FavoritesViewModel_HiltModules.BindsModule.class,
           GalleryViewModel_HiltModules.BindsModule.class,
+          HiddenViewModel_HiltModules.BindsModule.class,
           HiltWrapper_HiltViewModelFactory_ViewModelModule.class,
           PhotoViewerViewModel_HiltModules.BindsModule.class,
           TrashViewModel_HiltModules.BindsModule.class,

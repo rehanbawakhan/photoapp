@@ -10,10 +10,10 @@ interface PhotoDao {
 
     // ── Photos ──────────────────────────────────────────────────────────
 
-    @Query("SELECT * FROM photos WHERE isDeleted = 0 ORDER BY dateTaken DESC")
+    @Query("SELECT * FROM photos WHERE isDeleted = 0 AND isHidden = 0 ORDER BY dateTaken DESC")
     fun getAllPhotos(): Flow<List<PhotoEntity>>
 
-    @Query("SELECT * FROM photos WHERE isDeleted = 0 ORDER BY dateTaken DESC")
+    @Query("SELECT * FROM photos")
     suspend fun getAllPhotosList(): List<PhotoEntity>
 
     @Query("SELECT * FROM photos WHERE id = :id")
@@ -42,14 +42,14 @@ interface PhotoDao {
 
     // ── Favorites ───────────────────────────────────────────────────────
 
-    @Query("SELECT * FROM photos WHERE isFavorite = 1 AND isDeleted = 0 ORDER BY dateTaken DESC")
+    @Query("SELECT * FROM photos WHERE isFavorite = 1 AND isDeleted = 0 AND isHidden = 0 ORDER BY dateTaken DESC")
     fun getFavoritePhotos(): Flow<List<PhotoEntity>>
 
     @Query("UPDATE photos SET isFavorite = :isFavorite WHERE id = :id")
     suspend fun setFavorite(id: Long, isFavorite: Boolean)
 
-    @Query("UPDATE photos SET isFavorite = 1 WHERE id IN (:ids)")
-    suspend fun setFavoriteMultiple(ids: List<Long>)
+    @Query("UPDATE photos SET isFavorite = :isFavorite WHERE id IN (:ids)")
+    suspend fun setFavoriteMultiple(ids: List<Long>, isFavorite: Boolean)
 
     // ── Trash ───────────────────────────────────────────────────────────
 
@@ -101,14 +101,14 @@ interface PhotoDao {
 
     @Query("""
         SELECT * FROM photos 
-        WHERE bucketId = :bucketId AND isDeleted = 0 
+        WHERE bucketId = :bucketId AND isDeleted = 0 AND isHidden = 0 
         ORDER BY dateTaken DESC
     """)
     fun getPhotosByBucket(bucketId: String): Flow<List<PhotoEntity>>
 
     @Query("""
         SELECT * FROM photos 
-        WHERE bucketId = :bucketId AND isDeleted = 0 
+        WHERE bucketId = :bucketId AND isDeleted = 0 AND isHidden = 0 
         ORDER BY dateTaken DESC
     """)
     suspend fun getPhotosByBucketList(bucketId: String): List<PhotoEntity>
@@ -117,19 +117,36 @@ interface PhotoDao {
 
     @Query("""
         SELECT * FROM photos 
-        WHERE isDeleted = 0 AND (name LIKE '%' || :query || '%' OR path LIKE '%' || :query || '%')
+        WHERE isDeleted = 0 AND isHidden = 0 AND (name LIKE '%' || :query || '%' OR path LIKE '%' || :query || '%')
         ORDER BY dateTaken DESC
     """)
     fun searchPhotos(query: String): Flow<List<PhotoEntity>>
 
     // ── Stats ───────────────────────────────────────────────────────────
 
-    @Query("SELECT COUNT(*) FROM photos WHERE isDeleted = 0")
+    @Query("SELECT COUNT(*) FROM photos WHERE isDeleted = 0 AND isHidden = 0")
     fun getPhotoCount(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM photos WHERE isDeleted = 1")
     fun getTrashCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM photos WHERE isFavorite = 1 AND isDeleted = 0")
+    @Query("SELECT COUNT(*) FROM photos WHERE isFavorite = 1 AND isDeleted = 0 AND isHidden = 0")
     fun getFavoriteCount(): Flow<Int>
+
+    // ── Hidden ──────────────────────────────────────────────────────────
+
+    @Query("SELECT * FROM photos WHERE isHidden = 1 AND isDeleted = 0 ORDER BY dateTaken DESC")
+    fun getHiddenPhotos(): Flow<List<PhotoEntity>>
+
+    @Query("UPDATE photos SET isHidden = :isHidden WHERE id = :id")
+    suspend fun setHidden(id: Long, isHidden: Boolean)
+
+    @Query("UPDATE photos SET isHidden = 1 WHERE id IN (:ids)")
+    suspend fun hideMultiple(ids: List<Long>)
+
+    @Query("UPDATE photos SET isHidden = 0 WHERE id IN (:ids)")
+    suspend fun unhideMultiple(ids: List<Long>)
+
+    @Query("SELECT COUNT(*) FROM photos WHERE isHidden = 1 AND isDeleted = 0")
+    fun getHiddenCount(): Flow<Int>
 }

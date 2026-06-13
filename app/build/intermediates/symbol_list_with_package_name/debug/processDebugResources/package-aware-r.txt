@@ -30,7 +30,12 @@ animator fragment_fade_enter
 animator fragment_fade_exit
 animator fragment_open_enter
 animator fragment_open_exit
+array assume_strong_biometrics_models
+array crypto_fingerprint_fallback_prefixes
+array crypto_fingerprint_fallback_vendors
+array delay_showing_prompt_models
 array exo_controls_playback_speeds
+array hide_fingerprint_instantly_prefixes
 attr action
 attr actionBarDivider
 attr actionBarItemBackground
@@ -450,6 +455,7 @@ color background_floating_material_dark
 color background_floating_material_light
 color background_material_dark
 color background_material_light
+color biometric_error_color
 color bright_foreground_disabled_material_dark
 color bright_foreground_disabled_material_light
 color bright_foreground_inverse_material_dark
@@ -656,6 +662,7 @@ dimen exo_styled_progress_touch_target_height
 dimen fastscroll_default_thickness
 dimen fastscroll_margin
 dimen fastscroll_minimum_range
+dimen fingerprint_icon_size
 dimen highlight_alpha_material_colored
 dimen highlight_alpha_material_dark
 dimen highlight_alpha_material_light
@@ -876,6 +883,8 @@ drawable exo_styled_controls_speed
 drawable exo_styled_controls_subtitle_off
 drawable exo_styled_controls_subtitle_on
 drawable exo_styled_controls_vr
+drawable fingerprint_dialog_error
+drawable fingerprint_dialog_fp_icon
 drawable googleg_disabled_color_18
 drawable googleg_standard_color_18
 drawable ic_call_answer
@@ -1050,6 +1059,10 @@ id exo_vr
 id expand_activities_button
 id expanded_menu
 id fill
+id fingerprint_description
+id fingerprint_error
+id fingerprint_icon
+id fingerprint_subtitle
 id fit
 id fixed_height
 id fixed_width
@@ -1227,6 +1240,7 @@ layout exo_styled_settings_list
 layout exo_styled_settings_list_item
 layout exo_styled_sub_settings_list_item
 layout exo_track_selection_dialog
+layout fingerprint_dialog_layout
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout notification_action
@@ -1319,6 +1333,7 @@ string common_google_play_services_wear_update_text
 string common_open_on_phone
 string common_signin_button_text
 string common_signin_button_text_long
+string confirm_device_credential_password
 string crop_16_9
 string crop_3_2
 string crop_4_3
@@ -1330,6 +1345,7 @@ string date_this_week
 string date_today
 string date_yesterday
 string default_error_message
+string default_error_msg
 string default_popup_window_title
 string dialog_cancel
 string dialog_delete
@@ -1425,9 +1441,19 @@ string filter_sepia
 string filter_vintage
 string filter_vivid
 string filter_warm
+string fingerprint_dialog_touch_sensor
+string fingerprint_error_hw_not_available
+string fingerprint_error_hw_not_present
+string fingerprint_error_lockout
+string fingerprint_error_no_fingerprints
+string fingerprint_error_user_canceled
+string fingerprint_not_recognized
 string gallery_empty
 string gallery_empty_subtitle
 string gallery_title
+string generic_error_no_device_credential
+string generic_error_no_keyguard
+string generic_error_user_canceled
 string in_progress
 string indeterminate
 string info_date

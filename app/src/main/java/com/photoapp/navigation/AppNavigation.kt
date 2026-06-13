@@ -44,6 +44,7 @@ import com.photoapp.ui.settings.SettingsScreen
 import com.photoapp.ui.videos.VideosScreen
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.Videocam
+import com.photoapp.ui.hidden.HiddenScreen
 
 sealed class Screen(val route: String) {
     data object Gallery : Screen("gallery")
@@ -51,14 +52,16 @@ sealed class Screen(val route: String) {
     data object Albums : Screen("albums")
     data object Favorites : Screen("favorites")
     data object Trash : Screen("trash")
+    data object Hidden : Screen("hidden")
     data object Settings : Screen("settings")
-    data object Viewer : Screen("viewer/{photoId}?albumId={albumId}&favoritesOnly={favoritesOnly}&videosOnly={videosOnly}") {
-        fun createRoute(photoId: Long, albumId: String? = null, favoritesOnly: Boolean = false, videosOnly: Boolean = false): String {
+    data object Viewer : Screen("viewer/{photoId}?albumId={albumId}&favoritesOnly={favoritesOnly}&videosOnly={videosOnly}&hiddenOnly={hiddenOnly}") {
+        fun createRoute(photoId: Long, albumId: String? = null, favoritesOnly: Boolean = false, videosOnly: Boolean = false, hiddenOnly: Boolean = false): String {
             val builder = StringBuilder("viewer/$photoId")
             val params = mutableListOf<String>()
             if (albumId != null) params.add("albumId=$albumId")
             if (favoritesOnly) params.add("favoritesOnly=true")
             if (videosOnly) params.add("videosOnly=true")
+            if (hiddenOnly) params.add("hiddenOnly=true")
             if (params.isNotEmpty()) {
                 builder.append("?").append(params.joinToString("&"))
             }
@@ -193,6 +196,9 @@ fun AppNavigation() {
                     onTrashClick = {
                         navController.navigate(Screen.Trash.route)
                     },
+                    onHiddenClick = {
+                        navController.navigate(Screen.Hidden.route)
+                    },
                     bottomPadding = paddingValues.calculateBottomPadding()
                 )
             }
@@ -217,6 +223,21 @@ fun AppNavigation() {
                 )
             }
 
+            composable(Screen.Hidden.route) {
+                HiddenScreen(
+                    onPhotoClick = { photoId ->
+                        navController.navigate(
+                            Screen.Viewer.createRoute(
+                                photoId = photoId,
+                                hiddenOnly = true
+                            )
+                        )
+                    },
+                    onBack = { navController.navigateUp() },
+                    bottomPadding = paddingValues.calculateBottomPadding()
+                )
+            }
+
             // ── Detail destinations ──
 
             composable(
@@ -233,6 +254,10 @@ fun AppNavigation() {
                         defaultValue = false
                     },
                     navArgument("videosOnly") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
+                    navArgument("hiddenOnly") {
                         type = NavType.BoolType
                         defaultValue = false
                     }

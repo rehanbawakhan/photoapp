@@ -40,6 +40,7 @@ class PhotoViewerViewModel @Inject constructor(
     private val albumId: String? = savedStateHandle.get<String>("albumId")
     private val favoritesOnly: Boolean = savedStateHandle.get<Boolean>("favoritesOnly") ?: false
     private val videosOnly: Boolean = savedStateHandle.get<Boolean>("videosOnly") ?: false
+    private val hiddenOnly: Boolean = savedStateHandle.get<Boolean>("hiddenOnly") ?: false
 
     private val _showInfo = MutableStateFlow(false)
     private val _showControls = MutableStateFlow(true)
@@ -50,6 +51,7 @@ class PhotoViewerViewModel @Inject constructor(
         favoritesOnly -> repository.getFavoritePhotos()
         albumId != null -> repository.getPhotosByBucket(albumId)
         videosOnly -> repository.getAllPhotos().map { list -> list.filter { it.mimeType.startsWith("video/") } }
+        hiddenOnly -> repository.getHiddenPhotos()
         else -> repository.getAllPhotos()
     }
 
@@ -145,6 +147,18 @@ class PhotoViewerViewModel @Inject constructor(
         viewModelScope.launch {
             val success = repository.setAsWallpaper(photoId)
             callback(success)
+        }
+    }
+
+    fun hidePhoto(photoId: Long) {
+        viewModelScope.launch {
+            repository.hidePhotos(listOf(photoId))
+        }
+    }
+
+    fun unhidePhoto(photoId: Long) {
+        viewModelScope.launch {
+            repository.unhidePhotos(listOf(photoId))
         }
     }
 }

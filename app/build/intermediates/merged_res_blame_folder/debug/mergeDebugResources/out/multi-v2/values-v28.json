@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.photoapp-mergeDebugResources-70:/values-v28/values-v28.xml",
+            "outputFile": "com.photoapp-mergeDebugResources-71:/values-v28/values-v28.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\rehan\\.gradle\\caches\\9.0.0\\transforms\\a6ce76867d5527ef8a7f3a4ec53cdc41\\transformed\\appcompat-1.6.1\\res\\values-v28\\values-v28.xml",
+                    "source": "C:\\Users\\rehan\\.gradle\\caches\\9.0.0\\transforms\\35e657c701221780e5cf873d1c8c0f44\\transformed\\appcompat-1.6.1\\res\\values-v28\\values-v28.xml",
                     "from": {
                         "startLines": "2,3,4,8",
                         "startColumns": "4,4,4,4",

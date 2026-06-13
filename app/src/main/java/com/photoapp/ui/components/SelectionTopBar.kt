@@ -44,6 +44,8 @@ fun SelectionTopBar(
     onRename: (() -> Unit)? = null,
     onConvertToPdf: (() -> Unit)? = null,
     onSetAsWallpaper: (() -> Unit)? = null,
+    onHide: (() -> Unit)? = null,
+    onUnhide: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -94,7 +96,7 @@ fun SelectionTopBar(
                         contentDescription = "Delete"
                     )
                 }
-                if (onMoveToAlbum != null || onCopyToAlbum != null || onRename != null || onConvertToPdf != null || onSetAsWallpaper != null) {
+                if (onMoveToAlbum != null || onCopyToAlbum != null || onRename != null || onConvertToPdf != null || onSetAsWallpaper != null || onHide != null || onUnhide != null) {
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(
@@ -148,6 +150,24 @@ fun SelectionTopBar(
                                     onClick = {
                                         showMenu = false
                                         onSetAsWallpaper()
+                                    }
+                                )
+                            }
+                            if (onHide != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Hide") },
+                                    onClick = {
+                                        showMenu = false
+                                        onHide()
+                                    }
+                                )
+                            }
+                            if (onUnhide != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Unhide") },
+                                    onClick = {
+                                        showMenu = false
+                                        onUnhide()
                                     }
                                 )
                             }

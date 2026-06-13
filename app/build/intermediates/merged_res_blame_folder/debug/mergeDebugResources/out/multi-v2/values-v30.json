@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.photoapp-mergeDebugResources-70:/values-v30/values-v30.xml",
+            "outputFile": "com.photoapp-mergeDebugResources-71:/values-v30/values-v30.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\rehan\\.gradle\\caches\\9.0.0\\transforms\\2fda90b634746f53928e0e1447ad5e72\\transformed\\material3-release\\res\\values-v30\\values-v30.xml",
+                    "source": "C:\\Users\\rehan\\.gradle\\caches\\9.0.0\\transforms\\afb9d9d1df6b2d750fdc2ad830fc39f9\\transformed\\material3-release\\res\\values-v30\\values-v30.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

@@ -28,7 +28,8 @@ data class AlbumsUiState(
     val isLoading: Boolean = true,
     val selectedIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false,
-    val trashCount: Int = 0
+    val trashCount: Int = 0,
+    val hiddenCount: Int = 0
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -54,7 +55,8 @@ class AlbumsViewModel @Inject constructor(
         _selectedAlbumId,
         _isLoading,
         _selectedIds,
-        repository.getTrashPhotos()
+        repository.getTrashPhotos(),
+        repository.getHiddenCount()
     ) { array ->
         val albums = array[0] as List<AlbumEntity>
         val albumPhotos = array[1] as List<PhotoEntity>
@@ -62,6 +64,7 @@ class AlbumsViewModel @Inject constructor(
         val isLoading = array[3] as Boolean
         val selectedIds = array[4] as Set<Long>
         val trashPhotos = array[5] as List<PhotoEntity>
+        val hiddenCount = array[6] as Int
 
         AlbumsUiState(
             albums = albums,
@@ -70,7 +73,8 @@ class AlbumsViewModel @Inject constructor(
             isLoading = isLoading,
             selectedIds = selectedIds,
             isSelectionMode = selectedIds.isNotEmpty(),
-            trashCount = trashPhotos.size
+            trashCount = trashPhotos.size,
+            hiddenCount = hiddenCount
         )
     }.stateIn(
         scope = viewModelScope,
@@ -100,6 +104,10 @@ class AlbumsViewModel @Inject constructor(
         _selectedIds.value = _selectedIds.value.toMutableSet().apply {
             if (contains(photoId)) remove(photoId) else add(photoId)
         }
+    }
+
+    fun setSelectedIds(ids: Set<Long>) {
+        _selectedIds.value = ids
     }
 
     fun selectAll() {
@@ -202,6 +210,13 @@ class AlbumsViewModel @Inject constructor(
             } else {
                 callback(false)
             }
+            clearSelection()
+        }
+    }
+
+    fun hideSelected() {
+        viewModelScope.launch {
+            repository.hidePhotos(_selectedIds.value.toList())
             clearSelection()
         }
     }
