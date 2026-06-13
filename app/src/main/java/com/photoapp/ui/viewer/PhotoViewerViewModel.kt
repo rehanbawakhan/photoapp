@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoapp.data.local.entities.PhotoEntity
+import com.photoapp.data.local.entities.AlbumEntity
 import com.photoapp.data.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +23,7 @@ import javax.inject.Inject
 data class ViewerUiState(
     val initialPhotoId: Long = -1L,
     val allPhotos: List<PhotoEntity> = emptyList(),
+    val albums: List<AlbumEntity> = emptyList(),
     val showInfo: Boolean = false,
     val showControls: Boolean = true,
     val isDeleted: Boolean = false
@@ -53,13 +55,15 @@ class PhotoViewerViewModel @Inject constructor(
 
     val uiState: StateFlow<ViewerUiState> = combine(
         photosFlow,
+        repository.getAllAlbums(),
         _showInfo,
         _showControls,
         _isDeleted
-    ) { allPhotos, showInfo, showControls, isDeleted ->
+    ) { allPhotos, albums, showInfo, showControls, isDeleted ->
         ViewerUiState(
             initialPhotoId = initialPhotoId,
             allPhotos = allPhotos,
+            albums = albums,
             showInfo = showInfo,
             showControls = showControls,
             isDeleted = isDeleted
@@ -109,6 +113,38 @@ class PhotoViewerViewModel @Inject constructor(
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             )
+        }
+    }
+
+    fun copyPhotoToAlbum(photoId: Long, albumName: String) {
+        viewModelScope.launch {
+            repository.copyPhotosToAlbum(listOf(photoId), albumName)
+        }
+    }
+
+    fun movePhotoToAlbum(photoId: Long, albumName: String) {
+        viewModelScope.launch {
+            repository.movePhotosToAlbum(listOf(photoId), albumName)
+        }
+    }
+
+    fun renamePhoto(photoId: Long, newName: String) {
+        viewModelScope.launch {
+            repository.renamePhoto(photoId, newName)
+        }
+    }
+
+    fun convertPhotosToPdf(photoIds: List<Long>, targetFileName: String, callback: (android.net.Uri?) -> Unit) {
+        viewModelScope.launch {
+            val pdfUri = repository.convertPhotosToPdf(photoIds, targetFileName)
+            callback(pdfUri)
+        }
+    }
+
+    fun setAsWallpaper(photoId: Long, callback: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = repository.setAsWallpaper(photoId)
+            callback(success)
         }
     }
 }

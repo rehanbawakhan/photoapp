@@ -31,16 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -54,6 +44,22 @@ import com.photoapp.ui.components.EmptyStateType
 import com.photoapp.ui.components.PhotoGrid
 import com.photoapp.ui.components.SelectionTopBar
 import com.photoapp.ui.components.VerticalScrollbar
+import com.photoapp.ui.components.MoveCopyToAlbumDialog
+import com.photoapp.ui.components.RenameDialog
+import com.photoapp.ui.components.PdfNameDialog
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -76,6 +82,12 @@ fun AlbumsScreen(
     viewModel: AlbumsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showCopyDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showPdfDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = uiState.selectedAlbum != null) {
         if (uiState.isSelectionMode) {
@@ -85,48 +97,146 @@ fun AlbumsScreen(
         }
     }
 
-    AnimatedContent(
-        targetState = uiState.selectedAlbum != null,
-        transitionSpec = {
-            (slideInHorizontally { it } + fadeIn()) togetherWith
-                    (slideOutHorizontally { -it } + fadeOut())
-        },
-        label = "albumTransition"
-    ) { isAlbumDetail ->
-        if (isAlbumDetail && uiState.selectedAlbum != null) {
-            val currentAlbumId = uiState.selectedAlbum!!.id
-            // Album detail view
-            AlbumDetailView(
-                album = uiState.selectedAlbum!!,
-                photos = uiState.albumPhotos,
-                selectedIds = uiState.selectedIds,
-                isSelectionMode = uiState.isSelectionMode,
-                onBack = { viewModel.clearSelectedAlbum() },
-                onPhotoClick = { photoId ->
-                    if (uiState.isSelectionMode) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedContent(
+            targetState = uiState.selectedAlbum != null,
+            transitionSpec = {
+                (slideInHorizontally { it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it } + fadeOut())
+            },
+            label = "albumTransition",
+            modifier = Modifier.fillMaxSize()
+        ) { isAlbumDetail ->
+            if (isAlbumDetail && uiState.selectedAlbum != null) {
+                val currentAlbumId = uiState.selectedAlbum!!.id
+                // Album detail view
+                AlbumDetailView(
+                    album = uiState.selectedAlbum!!,
+                    photos = uiState.albumPhotos,
+                    selectedIds = uiState.selectedIds,
+                    isSelectionMode = uiState.isSelectionMode,
+                    onBack = { viewModel.clearSelectedAlbum() },
+                    onPhotoClick = { photoId ->
+                        if (uiState.isSelectionMode) {
+                            viewModel.toggleSelection(photoId)
+                        } else {
+                            onPhotoClick(photoId, currentAlbumId)
+                        }
+                    },
+                    onPhotoLongClick = { photoId ->
                         viewModel.toggleSelection(photoId)
-                    } else {
-                        onPhotoClick(photoId, currentAlbumId)
+                    },
+                    onCloseSelection = { viewModel.clearSelection() },
+                    onSelectAll = { viewModel.selectAll() },
+                    onDeleteSelection = { viewModel.deleteSelected() },
+                    onShareSelection = { viewModel.shareSelected() },
+                    onFavoriteSelection = { viewModel.favoriteSelected() },
+                    onMoveToAlbumSelection = { showMoveDialog = true },
+                    onCopyToAlbumSelection = { showCopyDialog = true },
+                    onRenameSelection = { showRenameDialog = true },
+                    onConvertToPdfSelection = { showPdfDialog = true },
+                    onSetAsWallpaperSelection = {
+                        viewModel.setAsWallpaperSelected { success ->
+                            if (success) {
+                                android.widget.Toast.makeText(context, "Wallpaper set successfully", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "Failed to set wallpaper", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    bottomPadding = bottomPadding
+                )
+            } else {
+                // Album grid view
+                AlbumGridView(
+                    albums = uiState.albums,
+                    trashCount = uiState.trashCount,
+                    onAlbumClick = { viewModel.selectAlbum(it.id) },
+                    onTrashClick = onTrashClick,
+                    bottomPadding = bottomPadding
+                )
+            }
+        }
+
+        // Dialogs
+        if (showMoveDialog) {
+            MoveCopyToAlbumDialog(
+                title = "Move to Album",
+                albums = uiState.albums,
+                onAlbumSelected = { albumName ->
+                    showMoveDialog = false
+                    viewModel.moveSelectedToAlbum(albumName)
+                    android.widget.Toast.makeText(context, "Moved items to $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onCreateNewAlbum = { albumName ->
+                    showMoveDialog = false
+                    viewModel.moveSelectedToAlbum(albumName)
+                    android.widget.Toast.makeText(context, "Moved items to new album $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showMoveDialog = false }
+            )
+        }
+
+        if (showCopyDialog) {
+            MoveCopyToAlbumDialog(
+                title = "Copy to Album",
+                albums = uiState.albums,
+                onAlbumSelected = { albumName ->
+                    showCopyDialog = false
+                    viewModel.copySelectedToAlbum(albumName)
+                    android.widget.Toast.makeText(context, "Copied items to $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onCreateNewAlbum = { albumName ->
+                    showCopyDialog = false
+                    viewModel.copySelectedToAlbum(albumName)
+                    android.widget.Toast.makeText(context, "Copied items to new album $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showCopyDialog = false }
+            )
+        }
+
+        if (showRenameDialog) {
+            val initialName = if (uiState.selectedIds.size == 1) {
+                uiState.albumPhotos.find { it.id == uiState.selectedIds.first() }?.name ?: ""
+            } else ""
+            
+            RenameDialog(
+                initialName = initialName,
+                onRename = { newName ->
+                    showRenameDialog = false
+                    viewModel.renameSelected(newName)
+                    android.widget.Toast.makeText(context, "Renamed selected items", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showRenameDialog = false }
+            )
+        }
+
+        if (showPdfDialog) {
+            PdfNameDialog(
+                onGenerate = { pdfName ->
+                    showPdfDialog = false
+                    viewModel.convertSelectedToPdf(pdfName) { pdfUri ->
+                        if (pdfUri != null) {
+                            android.widget.Toast.makeText(context, "PDF saved to Documents/PhotoApp", android.widget.Toast.LENGTH_LONG).show()
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, pdfUri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Share PDF").apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                })
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to generate PDF", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
-                onPhotoLongClick = { photoId ->
-                    viewModel.toggleSelection(photoId)
-                },
-                onCloseSelection = { viewModel.clearSelection() },
-                onSelectAll = { viewModel.selectAll() },
-                onDeleteSelection = { viewModel.deleteSelected() },
-                onShareSelection = { viewModel.shareSelected() },
-                onFavoriteSelection = { viewModel.favoriteSelected() },
-                bottomPadding = bottomPadding
-            )
-        } else {
-            // Album grid view
-            AlbumGridView(
-                albums = uiState.albums,
-                trashCount = uiState.trashCount,
-                onAlbumClick = { viewModel.selectAlbum(it.id) },
-                onTrashClick = onTrashClick,
-                bottomPadding = bottomPadding
+                onDismiss = { showPdfDialog = false }
             )
         }
     }
@@ -358,6 +468,11 @@ private fun AlbumDetailView(
     onDeleteSelection: () -> Unit,
     onShareSelection: () -> Unit,
     onFavoriteSelection: () -> Unit,
+    onMoveToAlbumSelection: () -> Unit,
+    onCopyToAlbumSelection: () -> Unit,
+    onRenameSelection: () -> Unit,
+    onConvertToPdfSelection: () -> Unit,
+    onSetAsWallpaperSelection: () -> Unit,
     bottomPadding: Dp = 0.dp
 ) {
     Scaffold(
@@ -370,7 +485,12 @@ private fun AlbumDetailView(
                     onSelectAll = onSelectAll,
                     onDelete = onDeleteSelection,
                     onShare = onShareSelection,
-                    onFavorite = onFavoriteSelection
+                    onFavorite = onFavoriteSelection,
+                    onMoveToAlbum = onMoveToAlbumSelection,
+                    onCopyToAlbum = onCopyToAlbumSelection,
+                    onRename = onRenameSelection,
+                    onConvertToPdf = onConvertToPdfSelection,
+                    onSetAsWallpaper = onSetAsWallpaperSelection
                 )
             } else {
                 TopAppBar(

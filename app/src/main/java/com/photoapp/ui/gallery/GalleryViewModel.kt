@@ -18,8 +18,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.photoapp.data.local.entities.AlbumEntity
+
 data class GalleryUiState(
     val photos: List<PhotoEntity> = emptyList(),
+    val albums: List<AlbumEntity> = emptyList(),
     val isLoading: Boolean = true,
     val selectedIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false,
@@ -38,12 +41,14 @@ class GalleryViewModel @Inject constructor(
 
     val uiState: StateFlow<GalleryUiState> = combine(
         repository.getAllPhotos(),
+        repository.getAllAlbums(),
         _selectedIds,
         _isLoading,
         _searchQuery
-    ) { photos, selectedIds, isLoading, searchQuery ->
+    ) { photos, albums, selectedIds, isLoading, searchQuery ->
         GalleryUiState(
             photos = photos,
+            albums = albums,
             isLoading = isLoading,
             selectedIds = selectedIds,
             isSelectionMode = selectedIds.isNotEmpty(),
@@ -130,6 +135,53 @@ class GalleryViewModel @Inject constructor(
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 )
+            }
+            clearSelection()
+        }
+    }
+
+    fun copySelectedToAlbum(albumName: String) {
+        viewModelScope.launch {
+            repository.copyPhotosToAlbum(_selectedIds.value.toList(), albumName)
+            clearSelection()
+        }
+    }
+
+    fun moveSelectedToAlbum(albumName: String) {
+        viewModelScope.launch {
+            repository.movePhotosToAlbum(_selectedIds.value.toList(), albumName)
+            clearSelection()
+        }
+    }
+
+    fun renameSelected(newName: String) {
+        viewModelScope.launch {
+            val ids = _selectedIds.value.toList()
+            if (ids.size == 1) {
+                repository.renamePhoto(ids.first(), newName)
+            } else {
+                repository.renamePhotos(ids, newName)
+            }
+            clearSelection()
+        }
+    }
+
+    fun convertSelectedToPdf(targetFileName: String, callback: (Uri?) -> Unit) {
+        viewModelScope.launch {
+            val pdfUri = repository.convertPhotosToPdf(_selectedIds.value.toList(), targetFileName)
+            clearSelection()
+            callback(pdfUri)
+        }
+    }
+
+    fun setAsWallpaperSelected(callback: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val firstId = _selectedIds.value.firstOrNull()
+            if (firstId != null) {
+                val success = repository.setAsWallpaper(firstId)
+                callback(success)
+            } else {
+                callback(false)
             }
             clearSelection()
         }

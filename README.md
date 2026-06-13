@@ -17,7 +17,12 @@ A sleek, state-of-the-art, AMOLED-optimized gallery application for Android devi
   - **Color Pop**: Keep subjects in vivid color while converting the background to black-and-white.
   - **Auto-Enhance**: One-tap histogram adjustment for brightness, contrast, and levels.
 - ⚡ **Dynamic Grid Zooming**: Pinch-to-zoom gestures dynamically scale the photos grid from **2** up to **8** columns with persistent state preservation.
-- 📁 **Smart Folder & Album Manager**: Easily organize, browse, and edit local device folders (Downloads, Camera, Screenshots). Includes a robust soft-delete **Trash** system.
+- 📁 **Smart Folder & Album Manager**: Easily organize, browse, and edit local device folders. Perform bulk operations on multiple items:
+  - **Move / Copy to Album**: Migrate or duplicate photos and videos into existing folders or custom new albums.
+  - **Sequential Renaming**: Rename single images, or batch-rename multiple items with suffix ordering (e.g. `Name_1.jpg`, `Name_2.jpg`).
+- 📄 **Convert to PDF**: Export one or more selected images into a single multi-page PDF document saved locally (under `Documents/PhotoApp/`) and instantly share it.
+- 🖼️ **Set as Wallpaper**: Directly set any photo as the device home or lock screen wallpaper.
+- ⚙️ **3-Dot Action Menu & Swipe-Up Details**: Modern viewer interface replacing the old details button with an overflow menu containing all actions. Details are accessed natively via a smooth swipe-up gesture on the photo viewer.
 - 🔍 **Google Lens Integration**: Instantly extract text or scan visual elements from images in the full-screen photo viewer.
 - 🏷️ **Advanced Media Badging**: Under-the-hood `MediaFormatAnalyzer` probes file headers asynchronously to show precise parameters:
   - HDR classification (Dolby Vision, HDR10, HLG).

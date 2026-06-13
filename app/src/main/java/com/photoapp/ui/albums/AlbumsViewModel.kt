@@ -158,4 +158,51 @@ class AlbumsViewModel @Inject constructor(
             clearSelection()
         }
     }
+
+    fun copySelectedToAlbum(albumName: String) {
+        viewModelScope.launch {
+            repository.copyPhotosToAlbum(_selectedIds.value.toList(), albumName)
+            clearSelection()
+        }
+    }
+
+    fun moveSelectedToAlbum(albumName: String) {
+        viewModelScope.launch {
+            repository.movePhotosToAlbum(_selectedIds.value.toList(), albumName)
+            clearSelection()
+        }
+    }
+
+    fun renameSelected(newName: String) {
+        viewModelScope.launch {
+            val ids = _selectedIds.value.toList()
+            if (ids.size == 1) {
+                repository.renamePhoto(ids.first(), newName)
+            } else {
+                repository.renamePhotos(ids, newName)
+            }
+            clearSelection()
+        }
+    }
+
+    fun convertSelectedToPdf(targetFileName: String, callback: (android.net.Uri?) -> Unit) {
+        viewModelScope.launch {
+            val pdfUri = repository.convertPhotosToPdf(_selectedIds.value.toList(), targetFileName)
+            clearSelection()
+            callback(pdfUri)
+        }
+    }
+
+    fun setAsWallpaperSelected(callback: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val firstId = _selectedIds.value.firstOrNull()
+            if (firstId != null) {
+                val success = repository.setAsWallpaper(firstId)
+                callback(success)
+            } else {
+                callback(false)
+            }
+            clearSelection()
+        }
+    }
 }

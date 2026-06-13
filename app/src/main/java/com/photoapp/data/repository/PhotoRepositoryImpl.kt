@@ -1,5 +1,18 @@
 package com.photoapp.data.repository
 
+import android.content.Context
+import android.content.ContentValues
+import android.provider.MediaStore
+import android.os.Build
+import android.os.Environment
+import android.app.WallpaperManager
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfDocument
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import android.net.Uri
 import com.photoapp.data.local.PhotoDao
 import com.photoapp.data.local.entities.AlbumEntity
@@ -12,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class PhotoRepositoryImpl @Inject constructor(
     private val photoDao: PhotoDao,
-    private val mediaStoreManager: MediaStoreManager
+    private val mediaStoreManager: MediaStoreManager,
+    @ApplicationContext private val context: Context
 ) : PhotoRepository {
 
     // ── Photos ──────────────────────────────────────────────────────────
@@ -193,5 +207,293 @@ class PhotoRepositoryImpl @Inject constructor(
             mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
         }
         photoDao.deletePhotosByIds(ids)
+    }
+
+    // ── Media Operations ───────────────────────────────────────────────
+
+    override suspend fun copyPhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean = withContext(Dispatchers.IO) {
+        var hasAnySuccess = false
+        val resolver = context.contentResolver
+        for (id in ids) {
+            val photo = photoDao.getPhotoById(id) ?: continue
+            val mimeType = photo.mimeType
+            val originalName = photo.name
+            
+            val subDir = if (mimeType.startsWith("video/")) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val targetRelativePath = "$subDir/$targetAlbumName"
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, originalName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, targetRelativePath)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                
+                val collection = if (mimeType.startsWith("video/")) {
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                }
+                
+                val newUri = resolver.insert(collection, contentValues)
+                if (newUri != null) {
+                    try {
+                        resolver.openInputStream(photo.contentUri)?.use { input ->
+                            resolver.openOutputStream(newUri)?.use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(newUri, contentValues, null, null)
+                        hasAnySuccess = true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        resolver.delete(newUri, null, null)
+                    }
+                }
+            } else {
+                val destDir = File(Environment.getExternalStoragePublicDirectory(subDir), targetAlbumName)
+                if (!destDir.exists()) destDir.mkdirs()
+                val destFile = File(destDir, originalName)
+                try {
+                    resolver.openInputStream(photo.contentUri)?.use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    android.media.MediaScannerConnection.scanFile(context, arrayOf(destFile.absolutePath), null, null)
+                    hasAnySuccess = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        if (hasAnySuccess) {
+            syncPhotos()
+            syncAlbums()
+        }
+        hasAnySuccess
+    }
+
+    override suspend fun movePhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean = withContext(Dispatchers.IO) {
+        var hasAnySuccess = false
+        val resolver = context.contentResolver
+        for (id in ids) {
+            val photo = photoDao.getPhotoById(id) ?: continue
+            val mimeType = photo.mimeType
+            val originalName = photo.name
+            
+            val subDir = if (mimeType.startsWith("video/")) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+            
+            var moveSuccess = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val targetRelativePath = "$subDir/$targetAlbumName"
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, originalName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, targetRelativePath)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                
+                val collection = if (mimeType.startsWith("video/")) {
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                }
+                
+                val newUri = resolver.insert(collection, contentValues)
+                if (newUri != null) {
+                    try {
+                        resolver.openInputStream(photo.contentUri)?.use { input ->
+                            resolver.openOutputStream(newUri)?.use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(newUri, contentValues, null, null)
+                        
+                        // Delete the original media
+                        resolver.delete(photo.contentUri, null, null)
+                        photoDao.deletePhoto(photo)
+                        moveSuccess = true
+                        hasAnySuccess = true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        resolver.delete(newUri, null, null)
+                    }
+                }
+            } else {
+                val destDir = File(Environment.getExternalStoragePublicDirectory(subDir), targetAlbumName)
+                if (!destDir.exists()) destDir.mkdirs()
+                val destFile = File(destDir, originalName)
+                try {
+                    resolver.openInputStream(photo.contentUri)?.use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    android.media.MediaScannerConnection.scanFile(context, arrayOf(destFile.absolutePath), null, null)
+                    
+                    // Delete original
+                    resolver.delete(photo.contentUri, null, null)
+                    photoDao.deletePhoto(photo)
+                    moveSuccess = true
+                    hasAnySuccess = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        if (hasAnySuccess) {
+            syncPhotos()
+            syncAlbums()
+        }
+        hasAnySuccess
+    }
+
+    override suspend fun renamePhoto(id: Long, newName: String): Boolean = withContext(Dispatchers.IO) {
+        val photo = photoDao.getPhotoById(id) ?: return@withContext false
+        val resolver = context.contentResolver
+        
+        val extensionIndex = photo.name.lastIndexOf('.')
+        val ext = if (extensionIndex != -1) photo.name.substring(extensionIndex) else ""
+        val finalName = if (newName.endsWith(ext, ignoreCase = true)) newName else "$newName$ext"
+        
+        return@withContext try {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, finalName)
+            }
+            val rows = resolver.update(photo.contentUri, contentValues, null, null)
+            if (rows > 0) {
+                photoDao.insertPhoto(photo.copy(name = finalName))
+                syncPhotos()
+                syncAlbums()
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun renamePhotos(ids: List<Long>, baseName: String): Boolean = withContext(Dispatchers.IO) {
+        var hasAnySuccess = false
+        val resolver = context.contentResolver
+        ids.forEachIndexed { index, id ->
+            val photo = photoDao.getPhotoById(id) ?: return@forEachIndexed
+            val extensionIndex = photo.name.lastIndexOf('.')
+            val ext = if (extensionIndex != -1) photo.name.substring(extensionIndex) else ""
+            val finalName = "${baseName}_${index + 1}$ext"
+            
+            try {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, finalName)
+                }
+                val rows = resolver.update(photo.contentUri, contentValues, null, null)
+                if (rows > 0) {
+                    photoDao.insertPhoto(photo.copy(name = finalName))
+                    hasAnySuccess = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        if (hasAnySuccess) {
+            syncPhotos()
+            syncAlbums()
+        }
+        hasAnySuccess
+    }
+
+    override suspend fun convertPhotosToPdf(ids: List<Long>, targetFileName: String): Uri? = withContext(Dispatchers.IO) {
+        val photos = ids.mapNotNull { photoDao.getPhotoById(it) }
+        if (photos.isEmpty()) return@withContext null
+        
+        val pdfDocument = PdfDocument()
+        val resolver = context.contentResolver
+        
+        for ((index, photo) in photos.withIndex()) {
+            try {
+                resolver.openInputStream(photo.contentUri)?.use { inputStream ->
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    if (bitmap != null) {
+                        val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, index + 1).create()
+                        val page = pdfDocument.startPage(pageInfo)
+                        page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                        pdfDocument.finishPage(page)
+                        bitmap.recycle()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        val finalName = if (targetFileName.endsWith(".pdf", ignoreCase = true)) targetFileName else "$targetFileName.pdf"
+        
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, finalName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/PhotoApp")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        }
+        
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        } else {
+            MediaStore.Files.getContentUri("external")
+        }
+        
+        var pdfUri: Uri? = null
+        try {
+            pdfUri = resolver.insert(collection, contentValues)
+            if (pdfUri != null) {
+                resolver.openOutputStream(pdfUri)?.use { outputStream ->
+                    pdfDocument.writeTo(outputStream)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(pdfUri, contentValues, null, null)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            if (pdfUri != null) {
+                resolver.delete(pdfUri, null, null)
+                pdfUri = null
+            }
+        } finally {
+            pdfDocument.close()
+        }
+        
+        pdfUri
+    }
+
+    override suspend fun setAsWallpaper(id: Long): Boolean = withContext(Dispatchers.IO) {
+        val photo = photoDao.getPhotoById(id) ?: return@withContext false
+        val resolver = context.contentResolver
+        return@withContext try {
+            resolver.openInputStream(photo.contentUri)?.use { inputStream ->
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    val wallpaperManager = WallpaperManager.getInstance(context)
+                    wallpaperManager.setBitmap(bitmap)
+                    true
+                } else {
+                    false
+                }
+            } ?: false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

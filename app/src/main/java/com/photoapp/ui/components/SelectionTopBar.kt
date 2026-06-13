@@ -3,14 +3,18 @@ package com.photoapp.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -19,6 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,8 +39,15 @@ fun SelectionTopBar(
     onDelete: () -> Unit,
     onShare: () -> Unit,
     onFavorite: () -> Unit,
+    onMoveToAlbum: (() -> Unit)? = null,
+    onCopyToAlbum: (() -> Unit)? = null,
+    onRename: (() -> Unit)? = null,
+    onConvertToPdf: (() -> Unit)? = null,
+    onSetAsWallpaper: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically { -it },
@@ -78,6 +93,66 @@ fun SelectionTopBar(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = "Delete"
                     )
+                }
+                if (onMoveToAlbum != null || onCopyToAlbum != null || onRename != null || onConvertToPdf != null || onSetAsWallpaper != null) {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options"
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            if (onMoveToAlbum != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Move to album") },
+                                    onClick = {
+                                        showMenu = false
+                                        onMoveToAlbum()
+                                    }
+                                )
+                            }
+                            if (onCopyToAlbum != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Copy to album") },
+                                    onClick = {
+                                        showMenu = false
+                                        onCopyToAlbum()
+                                    }
+                                )
+                            }
+                            if (onRename != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Rename") },
+                                    onClick = {
+                                        showMenu = false
+                                        onRename()
+                                    }
+                                )
+                            }
+                            if (onConvertToPdf != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Convert to PDF") },
+                                    onClick = {
+                                        showMenu = false
+                                        onConvertToPdf()
+                                    }
+                                )
+                            }
+                            if (onSetAsWallpaper != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Set as wallpaper") },
+                                    onClick = {
+                                        showMenu = false
+                                        onSetAsWallpaper()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(

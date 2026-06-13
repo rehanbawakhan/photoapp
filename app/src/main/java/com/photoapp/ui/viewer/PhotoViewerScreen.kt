@@ -41,9 +41,12 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,6 +56,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.photoapp.ui.components.MoveCopyToAlbumDialog
+import com.photoapp.ui.components.RenameDialog
+import com.photoapp.ui.components.PdfNameDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -109,6 +115,10 @@ fun PhotoViewerScreen(
     val allPhotos = uiState.allPhotos
     val pageScales = remember { mutableStateMapOf<Int, Float>() }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showCopyDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showPdfDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -253,7 +263,14 @@ fun PhotoViewerScreen(
                                     if (isVerticalDrag == null) {
                                         val totalDrag = currentPos - down.position
                                         if (totalDrag.getDistance() > 15f) {
-                                            isVerticalDrag = Math.abs(totalDrag.y) > Math.abs(totalDrag.x) && totalDrag.y > 0f
+                                            if (Math.abs(totalDrag.y) > Math.abs(totalDrag.x)) {
+                                                if (totalDrag.y > 0f) {
+                                                    isVerticalDrag = true
+                                                } else {
+                                                    isVerticalDrag = false
+                                                    viewModel.toggleInfo()
+                                                }
+                                            }
                                         }
                                     }
                                     
@@ -667,14 +684,64 @@ fun PhotoViewerScreen(
                         )
                     }
 
-                    // Info
-                    IconButton(onClick = { viewModel.toggleInfo() }) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Media info",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
+                    // More (3-dot menu)
+                    var showOverflowMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Move to album") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showMoveDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Copy to album") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showCopyDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showRenameDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Convert to PDF") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showPdfDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Set as wallpaper") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    viewModel.setAsWallpaper(currentPhoto.id) { success ->
+                                        if (success) {
+                                            android.widget.Toast.makeText(context, "Wallpaper set successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Failed to set wallpaper", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -710,6 +777,87 @@ fun PhotoViewerScreen(
                         Text("Cancel")
                     }
                 }
+            )
+        }
+
+        // Move to Album Dialog
+        if (showMoveDialog) {
+            MoveCopyToAlbumDialog(
+                title = "Move to Album",
+                albums = uiState.albums,
+                onAlbumSelected = { albumName ->
+                    showMoveDialog = false
+                    viewModel.movePhotoToAlbum(currentPhoto.id, albumName)
+                    android.widget.Toast.makeText(context, "Moved to $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onCreateNewAlbum = { albumName ->
+                    showMoveDialog = false
+                    viewModel.movePhotoToAlbum(currentPhoto.id, albumName)
+                    android.widget.Toast.makeText(context, "Moved to new album $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showMoveDialog = false }
+            )
+        }
+
+        // Copy to Album Dialog
+        if (showCopyDialog) {
+            MoveCopyToAlbumDialog(
+                title = "Copy to Album",
+                albums = uiState.albums,
+                onAlbumSelected = { albumName ->
+                    showCopyDialog = false
+                    viewModel.copyPhotoToAlbum(currentPhoto.id, albumName)
+                    android.widget.Toast.makeText(context, "Copied to $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onCreateNewAlbum = { albumName ->
+                    showCopyDialog = false
+                    viewModel.copyPhotoToAlbum(currentPhoto.id, albumName)
+                    android.widget.Toast.makeText(context, "Copied to new album $albumName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showCopyDialog = false }
+            )
+        }
+
+        // Rename Dialog
+        if (showRenameDialog) {
+            RenameDialog(
+                initialName = currentPhoto.name,
+                onRename = { newName ->
+                    showRenameDialog = false
+                    viewModel.renamePhoto(currentPhoto.id, newName)
+                    android.widget.Toast.makeText(context, "Renamed to $newName", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showRenameDialog = false }
+            )
+        }
+
+        // PDF Dialog
+        if (showPdfDialog) {
+            PdfNameDialog(
+                onGenerate = { pdfName ->
+                    showPdfDialog = false
+                    viewModel.convertPhotosToPdf(listOf(currentPhoto.id), pdfName) { pdfUri ->
+                        if (pdfUri != null) {
+                            android.widget.Toast.makeText(context, "PDF saved to Documents/PhotoApp", android.widget.Toast.LENGTH_LONG).show()
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, pdfUri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Share PDF").apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                })
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to generate PDF", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onDismiss = { showPdfDialog = false }
             )
         }
     }

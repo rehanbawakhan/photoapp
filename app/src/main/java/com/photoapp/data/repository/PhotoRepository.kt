@@ -42,4 +42,12 @@ interface PhotoRepository {
     suspend fun deleteFromDevice(photoId: Long): Boolean
     suspend fun getDeleteIntentSender(ids: List<Long>): android.content.IntentSender?
     suspend fun deleteFromDatabaseMultiple(ids: List<Long>)
+
+    // Media Operations
+    suspend fun copyPhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean
+    suspend fun movePhotosToAlbum(ids: List<Long>, targetAlbumName: String): Boolean
+    suspend fun renamePhoto(id: Long, newName: String): Boolean
+    suspend fun renamePhotos(ids: List<Long>, baseName: String): Boolean
+    suspend fun convertPhotosToPdf(ids: List<Long>, targetFileName: String): Uri?
+    suspend fun setAsWallpaper(id: Long): Boolean
 }
