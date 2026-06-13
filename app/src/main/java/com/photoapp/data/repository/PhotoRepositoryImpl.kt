@@ -243,15 +243,7 @@ class PhotoRepositoryImpl @Inject constructor(
                     }
                 }
                 
-                val deferred = kotlinx.coroutines.CompletableDeferred<Uri?>()
-                android.media.MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(finalDestFile.absolutePath),
-                    arrayOf(mimeType)
-                ) { _, uri ->
-                    deferred.complete(uri)
-                }
-                deferred.await()
+                scanFileWithTimeout(finalDestFile.absolutePath, mimeType)
                 hasAnySuccess = true
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -308,15 +300,7 @@ class PhotoRepositoryImpl @Inject constructor(
                 }
                 photoDao.deletePhoto(photo)
                 
-                val deferred = kotlinx.coroutines.CompletableDeferred<Uri?>()
-                android.media.MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(finalDestFile.absolutePath),
-                    arrayOf(mimeType)
-                ) { _, uri ->
-                    deferred.complete(uri)
-                }
-                deferred.await()
+                scanFileWithTimeout(finalDestFile.absolutePath, mimeType)
                 hasAnySuccess = true
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -368,21 +352,7 @@ class PhotoRepositoryImpl @Inject constructor(
             if (!oldFile.exists()) return@withContext false
             val newFile = File(oldFile.parentFile, finalName)
             if (oldFile.renameTo(newFile)) {
-                try {
-                    context.contentResolver.delete(photo.contentUri, null, null)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                
-                val deferred = kotlinx.coroutines.CompletableDeferred<Uri?>()
-                android.media.MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(newFile.absolutePath),
-                    arrayOf(photo.mimeType)
-                ) { _, uri ->
-                    deferred.complete(uri)
-                }
-                deferred.await()
+                scanFileWithTimeout(newFile.absolutePath, photo.mimeType)
                 true
             } else {
                 false
@@ -390,6 +360,20 @@ class PhotoRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    private suspend fun scanFileWithTimeout(path: String, mimeType: String): Uri? {
+        return kotlinx.coroutines.withTimeoutOrNull(1500) {
+            val deferred = kotlinx.coroutines.CompletableDeferred<Uri?>()
+            android.media.MediaScannerConnection.scanFile(
+                context,
+                arrayOf(path),
+                arrayOf(mimeType)
+            ) { _, uri ->
+                deferred.complete(uri)
+            }
+            deferred.await()
         }
     }
 
@@ -436,16 +420,7 @@ class PhotoRepositoryImpl @Inject constructor(
             pdfFile.outputStream().use { outputStream ->
                 pdfDocument.writeTo(outputStream)
             }
-            
-            val deferred = kotlinx.coroutines.CompletableDeferred<Uri?>()
-            android.media.MediaScannerConnection.scanFile(
-                context,
-                arrayOf(pdfFile.absolutePath),
-                arrayOf("application/pdf")
-            ) { _, uri ->
-                deferred.complete(uri)
-            }
-            pdfUri = deferred.await()
+            pdfUri = scanFileWithTimeout(pdfFile.absolutePath, "application/pdf")
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
