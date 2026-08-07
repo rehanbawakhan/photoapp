@@ -19,6 +19,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +49,7 @@ import com.photoapp.ui.components.PdfNameDialog
 fun GalleryScreen(
     onPhotoClick: (Long) -> Unit,
     onSettingsClick: () -> Unit,
+    onMapClick: () -> Unit,
     bottomPadding: Dp = 0.dp,
     viewModel: GalleryViewModel = hiltViewModel()
 ) {
@@ -57,6 +60,29 @@ fun GalleryScreen(
     var showCopyDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showPdfDialog by remember { mutableStateOf(false) }
+
+    val onPhotoClickState = rememberUpdatedState(onPhotoClick)
+    val rememberedOnPhotoClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            if (viewModel.uiState.value.isSelectionMode) {
+                viewModel.toggleSelection(photo.id)
+            } else {
+                onPhotoClickState.value(photo.id)
+            }
+        }
+    }
+
+    val rememberedOnPhotoLongClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            viewModel.toggleSelection(photo.id)
+        }
+    }
+
+    val rememberedOnSelectionChanged = remember(viewModel) {
+        { ids: Set<Long> ->
+            viewModel.setSelectedIds(ids)
+        }
+    }
 
     BackHandler(enabled = uiState.isSelectionMode) {
         viewModel.clearSelection()
@@ -101,6 +127,12 @@ fun GalleryScreen(
                         )
                     },
                     actions = {
+                        IconButton(onClick = onMapClick) {
+                            Icon(
+                                imageVector = Icons.Default.Map,
+                                contentDescription = "Map"
+                            )
+                        }
                         IconButton(onClick = onSettingsClick) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -119,7 +151,6 @@ fun GalleryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(bottom = bottomPadding)
         ) {
             when {
                 uiState.isLoading && uiState.photos.isEmpty() -> {
@@ -141,18 +172,10 @@ fun GalleryScreen(
                             photos = uiState.photos,
                             selectedIds = uiState.selectedIds,
                             isSelectionMode = uiState.isSelectionMode,
-                            onPhotoClick = { photo ->
-                                if (uiState.isSelectionMode) {
-                                    viewModel.toggleSelection(photo.id)
-                                } else {
-                                    onPhotoClick(photo.id)
-                                }
-                            },
-                            onPhotoLongClick = { photo ->
-                                viewModel.toggleSelection(photo.id)
-                            },
+                            onPhotoClick = rememberedOnPhotoClick,
+                            onPhotoLongClick = rememberedOnPhotoLongClick,
                             groupByDate = true,
-                            onSelectionChanged = { viewModel.setSelectedIds(it) },
+                            onSelectionChanged = rememberedOnSelectionChanged,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

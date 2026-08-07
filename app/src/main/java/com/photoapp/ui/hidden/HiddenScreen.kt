@@ -65,6 +65,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricManager
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.rememberUpdatedState
+import com.photoapp.data.local.entities.PhotoEntity
 
 enum class AuthState {
     SETUP_ENTER_PIN,
@@ -230,6 +232,29 @@ fun HiddenScreen(
         }
     }
 
+    val onPhotoClickState = rememberUpdatedState(onPhotoClick)
+    val rememberedOnPhotoClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            if (viewModel.uiState.value.isSelectionMode) {
+                viewModel.toggleSelection(photo.id)
+            } else {
+                onPhotoClickState.value(photo.id)
+            }
+        }
+    }
+
+    val rememberedOnPhotoLongClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            viewModel.toggleSelection(photo.id)
+        }
+    }
+
+    val rememberedOnSelectionChanged = remember(viewModel) {
+        { ids: Set<Long> ->
+            viewModel.setSelectedIds(ids)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -302,18 +327,10 @@ fun HiddenScreen(
                     photos = uiState.photos,
                     selectedIds = uiState.selectedIds,
                     isSelectionMode = uiState.isSelectionMode,
-                    onPhotoClick = { photo ->
-                        if (uiState.isSelectionMode) {
-                            viewModel.toggleSelection(photo.id)
-                        } else {
-                            onPhotoClick(photo.id)
-                        }
-                    },
-                    onPhotoLongClick = { photo ->
-                        viewModel.toggleSelection(photo.id)
-                    },
+                    onPhotoClick = rememberedOnPhotoClick,
+                    onPhotoLongClick = rememberedOnPhotoLongClick,
                     groupByDate = true,
-                    onSelectionChanged = { viewModel.setSelectedIds(it) },
+                    onSelectionChanged = rememberedOnSelectionChanged,
                     modifier = Modifier.fillMaxSize()
                 )
             }

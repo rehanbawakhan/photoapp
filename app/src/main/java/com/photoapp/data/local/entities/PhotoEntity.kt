@@ -3,6 +3,7 @@ package com.photoapp.data.local.entities
 import android.net.Uri
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Ignore
 
 @Entity(tableName = "photos")
 data class PhotoEntity(
@@ -23,10 +24,23 @@ data class PhotoEntity(
     val isFavorite: Boolean = false,
     val isDeleted: Boolean = false,
     val dateDeleted: Long? = null,
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
+    @Ignore
+    @Transient
+    private var _contentUri: Uri? = null
+
     val contentUri: Uri
-        get() = Uri.parse(uri)
+        get() {
+            var c = _contentUri
+            if (c == null) {
+                c = Uri.parse(uri)
+                _contentUri = c
+            }
+            return c
+        }
 
     val formattedSize: String
         get() {

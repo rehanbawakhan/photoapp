@@ -25,6 +25,8 @@ import com.photoapp.ui.gallery.GalleryViewModel;
 import com.photoapp.ui.gallery.GalleryViewModel_HiltModules;
 import com.photoapp.ui.hidden.HiddenViewModel;
 import com.photoapp.ui.hidden.HiddenViewModel_HiltModules;
+import com.photoapp.ui.map.PhotosMapViewModel;
+import com.photoapp.ui.map.PhotosMapViewModel_HiltModules;
 import com.photoapp.ui.trash.TrashViewModel;
 import com.photoapp.ui.trash.TrashViewModel_HiltModules;
 import com.photoapp.ui.videos.VideosViewModel;
@@ -390,7 +392,7 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
 
     @Override
     public Map<Class<?>, Boolean> getViewModelKeys() {
-      return LazyClassKeyMap.<Boolean>of(ImmutableMap.<String, Boolean>builderWithExpectedSize(8).put(LazyClassKeyProvider.com_photoapp_ui_albums_AlbumsViewModel, AlbumsViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_editor_EditorViewModel, EditorViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_favorites_FavoritesViewModel, FavoritesViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_gallery_GalleryViewModel, GalleryViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_hidden_HiddenViewModel, HiddenViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_viewer_PhotoViewerViewModel, PhotoViewerViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_trash_TrashViewModel, TrashViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_videos_VideosViewModel, VideosViewModel_HiltModules.KeyModule.provide()).build());
+      return LazyClassKeyMap.<Boolean>of(ImmutableMap.<String, Boolean>builderWithExpectedSize(9).put(LazyClassKeyProvider.com_photoapp_ui_albums_AlbumsViewModel, AlbumsViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_editor_EditorViewModel, EditorViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_favorites_FavoritesViewModel, FavoritesViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_gallery_GalleryViewModel, GalleryViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_hidden_HiddenViewModel, HiddenViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_viewer_PhotoViewerViewModel, PhotoViewerViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_map_PhotosMapViewModel, PhotosMapViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_trash_TrashViewModel, TrashViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_photoapp_ui_videos_VideosViewModel, VideosViewModel_HiltModules.KeyModule.provide()).build());
     }
 
     @Override
@@ -410,45 +412,50 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_photoapp_ui_editor_EditorViewModel = "com.photoapp.ui.editor.EditorViewModel";
-
       static String com_photoapp_ui_trash_TrashViewModel = "com.photoapp.ui.trash.TrashViewModel";
-
-      static String com_photoapp_ui_albums_AlbumsViewModel = "com.photoapp.ui.albums.AlbumsViewModel";
-
-      static String com_photoapp_ui_favorites_FavoritesViewModel = "com.photoapp.ui.favorites.FavoritesViewModel";
 
       static String com_photoapp_ui_videos_VideosViewModel = "com.photoapp.ui.videos.VideosViewModel";
 
-      static String com_photoapp_ui_hidden_HiddenViewModel = "com.photoapp.ui.hidden.HiddenViewModel";
+      static String com_photoapp_ui_favorites_FavoritesViewModel = "com.photoapp.ui.favorites.FavoritesViewModel";
 
-      static String com_photoapp_ui_gallery_GalleryViewModel = "com.photoapp.ui.gallery.GalleryViewModel";
+      static String com_photoapp_ui_albums_AlbumsViewModel = "com.photoapp.ui.albums.AlbumsViewModel";
+
+      static String com_photoapp_ui_editor_EditorViewModel = "com.photoapp.ui.editor.EditorViewModel";
 
       static String com_photoapp_ui_viewer_PhotoViewerViewModel = "com.photoapp.ui.viewer.PhotoViewerViewModel";
 
-      @KeepFieldType
-      EditorViewModel com_photoapp_ui_editor_EditorViewModel2;
+      static String com_photoapp_ui_map_PhotosMapViewModel = "com.photoapp.ui.map.PhotosMapViewModel";
+
+      static String com_photoapp_ui_gallery_GalleryViewModel = "com.photoapp.ui.gallery.GalleryViewModel";
+
+      static String com_photoapp_ui_hidden_HiddenViewModel = "com.photoapp.ui.hidden.HiddenViewModel";
 
       @KeepFieldType
       TrashViewModel com_photoapp_ui_trash_TrashViewModel2;
 
       @KeepFieldType
-      AlbumsViewModel com_photoapp_ui_albums_AlbumsViewModel2;
+      VideosViewModel com_photoapp_ui_videos_VideosViewModel2;
 
       @KeepFieldType
       FavoritesViewModel com_photoapp_ui_favorites_FavoritesViewModel2;
 
       @KeepFieldType
-      VideosViewModel com_photoapp_ui_videos_VideosViewModel2;
+      AlbumsViewModel com_photoapp_ui_albums_AlbumsViewModel2;
 
       @KeepFieldType
-      HiddenViewModel com_photoapp_ui_hidden_HiddenViewModel2;
+      EditorViewModel com_photoapp_ui_editor_EditorViewModel2;
+
+      @KeepFieldType
+      PhotoViewerViewModel com_photoapp_ui_viewer_PhotoViewerViewModel2;
+
+      @KeepFieldType
+      PhotosMapViewModel com_photoapp_ui_map_PhotosMapViewModel2;
 
       @KeepFieldType
       GalleryViewModel com_photoapp_ui_gallery_GalleryViewModel2;
 
       @KeepFieldType
-      PhotoViewerViewModel com_photoapp_ui_viewer_PhotoViewerViewModel2;
+      HiddenViewModel com_photoapp_ui_hidden_HiddenViewModel2;
     }
   }
 
@@ -473,6 +480,8 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
 
     private Provider<PhotoViewerViewModel> photoViewerViewModelProvider;
 
+    private Provider<PhotosMapViewModel> photosMapViewModelProvider;
+
     private Provider<TrashViewModel> trashViewModelProvider;
 
     private Provider<VideosViewModel> videosViewModelProvider;
@@ -496,13 +505,14 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
       this.galleryViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
       this.hiddenViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 4);
       this.photoViewerViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 5);
-      this.trashViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 6);
-      this.videosViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 7);
+      this.photosMapViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 6);
+      this.trashViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 7);
+      this.videosViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 8);
     }
 
     @Override
     public Map<Class<?>, javax.inject.Provider<ViewModel>> getHiltViewModelMap() {
-      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(ImmutableMap.<String, javax.inject.Provider<ViewModel>>builderWithExpectedSize(8).put(LazyClassKeyProvider.com_photoapp_ui_albums_AlbumsViewModel, ((Provider) albumsViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_editor_EditorViewModel, ((Provider) editorViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_favorites_FavoritesViewModel, ((Provider) favoritesViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_gallery_GalleryViewModel, ((Provider) galleryViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_hidden_HiddenViewModel, ((Provider) hiddenViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_viewer_PhotoViewerViewModel, ((Provider) photoViewerViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_trash_TrashViewModel, ((Provider) trashViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_videos_VideosViewModel, ((Provider) videosViewModelProvider)).build());
+      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(ImmutableMap.<String, javax.inject.Provider<ViewModel>>builderWithExpectedSize(9).put(LazyClassKeyProvider.com_photoapp_ui_albums_AlbumsViewModel, ((Provider) albumsViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_editor_EditorViewModel, ((Provider) editorViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_favorites_FavoritesViewModel, ((Provider) favoritesViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_gallery_GalleryViewModel, ((Provider) galleryViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_hidden_HiddenViewModel, ((Provider) hiddenViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_viewer_PhotoViewerViewModel, ((Provider) photoViewerViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_map_PhotosMapViewModel, ((Provider) photosMapViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_trash_TrashViewModel, ((Provider) trashViewModelProvider)).put(LazyClassKeyProvider.com_photoapp_ui_videos_VideosViewModel, ((Provider) videosViewModelProvider)).build());
     }
 
     @Override
@@ -512,24 +522,23 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_photoapp_ui_hidden_HiddenViewModel = "com.photoapp.ui.hidden.HiddenViewModel";
-
       static String com_photoapp_ui_viewer_PhotoViewerViewModel = "com.photoapp.ui.viewer.PhotoViewerViewModel";
 
       static String com_photoapp_ui_trash_TrashViewModel = "com.photoapp.ui.trash.TrashViewModel";
 
       static String com_photoapp_ui_gallery_GalleryViewModel = "com.photoapp.ui.gallery.GalleryViewModel";
 
-      static String com_photoapp_ui_albums_AlbumsViewModel = "com.photoapp.ui.albums.AlbumsViewModel";
+      static String com_photoapp_ui_editor_EditorViewModel = "com.photoapp.ui.editor.EditorViewModel";
 
       static String com_photoapp_ui_favorites_FavoritesViewModel = "com.photoapp.ui.favorites.FavoritesViewModel";
 
       static String com_photoapp_ui_videos_VideosViewModel = "com.photoapp.ui.videos.VideosViewModel";
 
-      static String com_photoapp_ui_editor_EditorViewModel = "com.photoapp.ui.editor.EditorViewModel";
+      static String com_photoapp_ui_hidden_HiddenViewModel = "com.photoapp.ui.hidden.HiddenViewModel";
 
-      @KeepFieldType
-      HiddenViewModel com_photoapp_ui_hidden_HiddenViewModel2;
+      static String com_photoapp_ui_map_PhotosMapViewModel = "com.photoapp.ui.map.PhotosMapViewModel";
+
+      static String com_photoapp_ui_albums_AlbumsViewModel = "com.photoapp.ui.albums.AlbumsViewModel";
 
       @KeepFieldType
       PhotoViewerViewModel com_photoapp_ui_viewer_PhotoViewerViewModel2;
@@ -541,7 +550,7 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
       GalleryViewModel com_photoapp_ui_gallery_GalleryViewModel2;
 
       @KeepFieldType
-      AlbumsViewModel com_photoapp_ui_albums_AlbumsViewModel2;
+      EditorViewModel com_photoapp_ui_editor_EditorViewModel2;
 
       @KeepFieldType
       FavoritesViewModel com_photoapp_ui_favorites_FavoritesViewModel2;
@@ -550,7 +559,13 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
       VideosViewModel com_photoapp_ui_videos_VideosViewModel2;
 
       @KeepFieldType
-      EditorViewModel com_photoapp_ui_editor_EditorViewModel2;
+      HiddenViewModel com_photoapp_ui_hidden_HiddenViewModel2;
+
+      @KeepFieldType
+      PhotosMapViewModel com_photoapp_ui_map_PhotosMapViewModel2;
+
+      @KeepFieldType
+      AlbumsViewModel com_photoapp_ui_albums_AlbumsViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -592,10 +607,13 @@ public final class DaggerPhotoApp_HiltComponents_SingletonC {
           case 5: // com.photoapp.ui.viewer.PhotoViewerViewModel 
           return (T) new PhotoViewerViewModel(singletonCImpl.photoRepositoryImplProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), viewModelCImpl.savedStateHandle);
 
-          case 6: // com.photoapp.ui.trash.TrashViewModel 
+          case 6: // com.photoapp.ui.map.PhotosMapViewModel 
+          return (T) new PhotosMapViewModel(singletonCImpl.photoRepositoryImplProvider.get());
+
+          case 7: // com.photoapp.ui.trash.TrashViewModel 
           return (T) new TrashViewModel(singletonCImpl.photoRepositoryImplProvider.get());
 
-          case 7: // com.photoapp.ui.videos.VideosViewModel 
+          case 8: // com.photoapp.ui.videos.VideosViewModel 
           return (T) new VideosViewModel(singletonCImpl.photoRepositoryImplProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           default: throw new AssertionError(id);

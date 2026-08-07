@@ -32,8 +32,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -45,6 +50,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,6 +88,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.pager.HorizontalPager
@@ -212,17 +220,15 @@ fun PhotoViewerScreen(
     var mediaInfo by remember { mutableStateOf<com.photoapp.util.MediaFormatAnalyzer.MediaInfo?>(null) }
     LaunchedEffect(currentPhoto) {
         mediaInfo = null
-        if (currentPhoto != null) {
-            mediaInfo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                com.photoapp.util.MediaFormatAnalyzer.analyze(
-                    context = context,
-                    uriString = currentPhoto.uri,
-                    path = currentPhoto.path,
-                    isVideo = currentPhoto.mimeType.startsWith("video/"),
-                    width = currentPhoto.width,
-                    height = currentPhoto.height
-                )
-            }
+        mediaInfo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.photoapp.util.MediaFormatAnalyzer.analyze(
+                context = context,
+                uriString = currentPhoto.uri,
+                path = currentPhoto.path,
+                isVideo = currentPhoto.mimeType.startsWith("video/"),
+                width = currentPhoto.width,
+                height = currentPhoto.height
+            )
         }
     }
 
@@ -306,6 +312,7 @@ fun PhotoViewerScreen(
         HorizontalPager(
             state = pagerState,
             userScrollEnabled = currentScale == 1f && swipeDismissOffsetY.value == 0f,
+            beyondViewportPageCount = 0,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
@@ -888,6 +895,10 @@ private fun MediaInfoContent(
 ) {
     val context = LocalContext.current
     var info by remember(photo) { mutableStateOf<com.photoapp.util.MediaFormatAnalyzer.MediaInfo?>(null) }
+    var addressText by remember(photo) { mutableStateOf("Fetching location...") }
+
+    val hasLocation = photo.latitude != null && photo.longitude != null && (photo.latitude != 0.0 || photo.longitude != 0.0)
+
     LaunchedEffect(photo) {
         info = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.photoapp.util.MediaFormatAnalyzer.analyze(
@@ -898,6 +909,28 @@ private fun MediaInfoContent(
                 width = photo.width,
                 height = photo.height
             )
+        }
+    }
+
+    if (hasLocation) {
+        LaunchedEffect(photo.latitude, photo.longitude) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val geocoder = android.location.Geocoder(context, java.util.Locale.getDefault())
+                    val addresses = geocoder.getFromLocation(photo.latitude!!, photo.longitude!!, 1)
+                    if (!addresses.isNullOrEmpty()) {
+                        val address = addresses[0]
+                        val city = address.locality ?: address.subAdminArea ?: ""
+                        val state = address.adminArea ?: ""
+                        val country = address.countryName ?: ""
+                        addressText = listOfNotNull(city.takeIf { it.isNotEmpty() }, state.takeIf { it.isNotEmpty() }, country.takeIf { it.isNotEmpty() }).joinToString(", ")
+                    } else {
+                        addressText = String.format(java.util.Locale.US, "%.4f, %.4f", photo.latitude, photo.longitude)
+                    }
+                } catch (e: Exception) {
+                    addressText = String.format(java.util.Locale.US, "%.4f, %.4f", photo.latitude, photo.longitude)
+                }
+            }
         }
     }
 
@@ -915,6 +948,207 @@ private fun MediaInfoContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // 1. Map Section if Location is Present
+        if (hasLocation) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black)
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            webViewClient = WebViewClient()
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            
+                            // Enable mixed content mode to allow maps asset loading
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            }
+                            
+                            // Remove WebView identification tags from the User Agent
+                            // to bypass the iframe security restriction from Google Maps
+                            val defaultUserAgent = settings.userAgentString
+                            if (defaultUserAgent != null) {
+                                settings.userAgentString = defaultUserAgent
+                                    .replace("; wv", "")
+                                    .replace("Version/4.0 ", "")
+                            }
+                            
+                            setBackgroundColor(0)
+                        }
+                    },
+                    update = { webView ->
+                        val latLngPair = Pair(photo.latitude, photo.longitude)
+                        if (webView.tag != latLngPair) {
+                            webView.tag = latLngPair
+                            val htmlContent = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                                    <style>
+                                        html, body {
+                                            width: 100%;
+                                            height: 100%;
+                                            margin: 0;
+                                            padding: 0;
+                                            background-color: #121212;
+                                            overflow: hidden;
+                                        }
+                                        iframe {
+                                            width: 100%;
+                                            height: 100%;
+                                            border: none;
+                                            filter: invert(90%) hue-rotate(180deg);
+                                        }
+                                    </style>
+                                </head>
+                                <body>
+                                    <iframe 
+                                        width="100%" 
+                                        height="100%" 
+                                        style="border:0;" 
+                                        src="https://maps.google.com/maps?q=${photo.latitude!!},${photo.longitude!!}&z=15&output=embed">
+                                    </iframe>
+                                </body>
+                                </html>
+                            """.trimIndent()
+                            webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Dark shade overlay and Address overlay on top of WebView
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = addressText,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // 2. Premium EXIF Details Grid
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+            ) {
+                // Row 1: Aperture, Shutter Speed, Bias, ISO
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val apertureText = info?.aperture ?: "--"
+                    val shutterText = info?.shutterSpeed ?: "--"
+                    val biasText = info?.exposureBias ?: "0.0 EV"
+                    val isoText = info?.iso ?: "--"
+
+                    Text(text = apertureText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(text = shutterText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(text = biasText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(text = isoText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+
+                // Row 2: Focal Length, Resolution, File Size
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val focalText = info?.focalLength ?: "--"
+                    val resolutionText = photo.resolution
+                    val sizeText = photo.formattedSize
+
+                    Text(text = focalText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(text = resolutionText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1.5f), textAlign = TextAlign.Center)
+                    Text(text = sizeText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+
+                // Row 3: Device name / Megapixel badge
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val deviceText = info?.deviceModel ?: "UNKNOWN DEVICE"
+                    val mpText = info?.megapixels ?: "${Math.round((photo.width * photo.height) / 1_000_000.0)} MP"
+
+                    Text(
+                        text = deviceText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = mpText,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. Metadata Files details (Paths, Filenames, types)
         InfoRow(label = "Filename", value = photo.name)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -965,12 +1199,6 @@ private fun MediaInfoContent(
         }
 
         InfoRow(label = "Date Added", value = DateUtils.formatDateTime(photo.dateAdded))
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        InfoRow(label = "File Size", value = photo.formattedSize)
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        InfoRow(label = "Resolution", value = photo.resolution)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         InfoRow(label = "Type", value = photo.mimeType)

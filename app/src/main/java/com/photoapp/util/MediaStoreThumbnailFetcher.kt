@@ -3,6 +3,7 @@ package com.photoapp.util
 import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
@@ -15,6 +16,8 @@ import coil.fetch.FetchResult
 import coil.fetch.Fetcher
 import coil.request.Options
 import coil.size.Dimension
+import java.io.File
+import java.io.FileOutputStream
 
 class MediaStoreThumbnailFetcher(
     private val context: Context,
@@ -40,6 +43,38 @@ class MediaStoreThumbnailFetcher(
             return null
         }
 
+        val id = try {
+            data.lastPathSegment?.toLong()
+        } catch (e: Exception) {
+            null
+        } ?: return null
+
+        val thumbDir = File(context.cacheDir, "thumbnails")
+        if (!thumbDir.exists()) {
+            thumbDir.mkdirs()
+        }
+        val cacheFile = File(thumbDir, "${id}.jpg")
+
+        // 1. Check local cache first
+        if (cacheFile.exists() && cacheFile.length() > 0) {
+            try {
+                val bitmapOptions = BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                val cachedBitmap = BitmapFactory.decodeFile(cacheFile.absolutePath, bitmapOptions)
+                if (cachedBitmap != null) {
+                    return DrawableResult(
+                        drawable = BitmapDrawable(context.resources, cachedBitmap),
+                        isSampled = true,
+                        dataSource = DataSource.DISK
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Fallback to generating and saving thumbnail
         return try {
             val bitmap: Bitmap? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 context.contentResolver.loadThumbnail(
@@ -49,13 +84,6 @@ class MediaStoreThumbnailFetcher(
                 )
             } else {
                 // Fallback for API 26-28
-                val id = try {
-                    data.lastPathSegment?.toLong()
-                } catch (e: Exception) {
-                    null
-                }
-                if (id == null) return null
-
                 val isVideo = data.toString().contains("video")
                 if (isVideo) {
                     @Suppress("DEPRECATION")
@@ -77,6 +105,15 @@ class MediaStoreThumbnailFetcher(
             }
 
             if (bitmap != null) {
+                // Save to local cache file asynchronously/synchronously
+                try {
+                    FileOutputStream(cacheFile).use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 DrawableResult(
                     drawable = BitmapDrawable(context.resources, bitmap),
                     isSampled = true,
@@ -87,6 +124,19 @@ class MediaStoreThumbnailFetcher(
             }
         } catch (e: Exception) {
             null // Fallback to Coil's default fetcher if system load fails
+        }
+    }
+
+    companion object {
+        fun clearCacheForId(context: Context, id: Long) {
+            try {
+                val cacheFile = File(File(context.cacheDir, "thumbnails"), "${id}.jpg")
+                if (cacheFile.exists()) {
+                    cacheFile.delete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

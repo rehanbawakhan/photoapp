@@ -18,9 +18,11 @@ import com.photoapp.data.local.PhotoDao
 import com.photoapp.data.local.entities.AlbumEntity
 import com.photoapp.data.local.entities.PhotoEntity
 import com.photoapp.data.media.MediaStoreManager
+import com.photoapp.util.MediaStoreThumbnailFetcher
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.exifinterface.media.ExifInterface
 
 @Singleton
 class PhotoRepositoryImpl @Inject constructor(
@@ -43,7 +45,59 @@ class PhotoRepositoryImpl @Inject constructor(
         return photoDao.observePhotoById(id)
     }
 
-    override suspend fun syncPhotos() {
+    private fun getExifLocation(context: Context, uriString: String): Pair<Double, Double>? {
+        try {
+            val uri = Uri.parse(uriString)
+            val photoUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    MediaStore.setRequireOriginal(uri)
+                } catch (e: Exception) {
+                    uri
+                }
+            } else {
+                uri
+            }
+            context.contentResolver.openInputStream(photoUri)?.use { inputStream ->
+                val exif = ExifInterface(inputStream)
+                val latLong = exif.latLong
+                if (latLong != null && latLong.size >= 2) {
+                    val lat = latLong[0]
+                    val lng = latLong[1]
+                    if (lat != 0.0 || lng != 0.0) {
+                        return Pair(lat, lng)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    private fun getVideoLocation(context: Context, uriString: String): Pair<Double, Double>? {
+        try {
+            val retriever = android.media.MediaMetadataRetriever()
+            retriever.setDataSource(context, Uri.parse(uriString))
+            val locationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_LOCATION)
+            retriever.release()
+            if (locationStr != null) {
+                val regex = """([+-]\d+\.\d+)([+-]\d+\.\d+)""".toRegex()
+                val match = regex.find(locationStr)
+                if (match != null) {
+                    val lat = match.groupValues[1].toDoubleOrNull()
+                    val lng = match.groupValues[2].toDoubleOrNull()
+                    if (lat != null && lng != null && (lat != 0.0 || lng != 0.0)) {
+                        return Pair(lat, lng)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    override suspend fun syncPhotos() = withContext(Dispatchers.IO) {
         val mediaPhotos = mediaStoreManager.loadPhotos()
         val existingPhotos = photoDao.getAllPhotosList()
 
@@ -58,13 +112,31 @@ class PhotoRepositoryImpl @Inject constructor(
             val existing = existingMap[mediaPhoto.id]
             if (existing == null) {
                 // New photo
-                toInsert.add(mediaPhoto)
+                var photoWithLocation = mediaPhoto
+                if (photoWithLocation.latitude == null || photoWithLocation.longitude == null || 
+                    (photoWithLocation.latitude == 0.0 && photoWithLocation.longitude == 0.0)) {
+                    val isVideo = photoWithLocation.mimeType.startsWith("video/")
+                    val loc = if (isVideo) getVideoLocation(context, photoWithLocation.uri) else getExifLocation(context, photoWithLocation.uri)
+                    if (loc != null) {
+                        photoWithLocation = photoWithLocation.copy(latitude = loc.first, longitude = loc.second)
+                    }
+                }
+                toInsert.add(photoWithLocation)
             } else if (existing.dateModified != mediaPhoto.dateModified || 
                        existing.size != mediaPhoto.size || 
                        existing.path != mediaPhoto.path) {
                 // Modified photo: copy favorite/deleted/hidden states
+                var photoWithLocation = mediaPhoto
+                if (photoWithLocation.latitude == null || photoWithLocation.longitude == null || 
+                    (photoWithLocation.latitude == 0.0 && photoWithLocation.longitude == 0.0)) {
+                    val isVideo = photoWithLocation.mimeType.startsWith("video/")
+                    val loc = if (isVideo) getVideoLocation(context, photoWithLocation.uri) else getExifLocation(context, photoWithLocation.uri)
+                    if (loc != null) {
+                        photoWithLocation = photoWithLocation.copy(latitude = loc.first, longitude = loc.second)
+                    }
+                }
                 toInsert.add(
-                    mediaPhoto.copy(
+                    photoWithLocation.copy(
                         isFavorite = existing.isFavorite,
                         isDeleted = existing.isDeleted,
                         dateDeleted = existing.dateDeleted,
@@ -89,6 +161,25 @@ class PhotoRepositoryImpl @Inject constructor(
         if (toDelete.isNotEmpty()) {
             photoDao.deletePhotosByIds(toDelete)
         }
+
+        // Scan existing photos in the database that are missing location metadata and update them
+        val missingLocationPhotos = existingPhotos.filter {
+            !it.isHidden && !it.isDeleted && 
+            (it.latitude == null || it.longitude == null || (it.latitude == 0.0 && it.longitude == 0.0))
+        }
+        if (missingLocationPhotos.isNotEmpty()) {
+            val toUpdate = mutableListOf<PhotoEntity>()
+            for (photo in missingLocationPhotos) {
+                val isVideo = photo.mimeType.startsWith("video/")
+                val loc = if (isVideo) getVideoLocation(context, photo.uri) else getExifLocation(context, photo.uri)
+                if (loc != null) {
+                    toUpdate.add(photo.copy(latitude = loc.first, longitude = loc.second))
+                }
+            }
+            if (toUpdate.isNotEmpty()) {
+                photoDao.insertPhotos(toUpdate)
+            }
+        }
     }
 
     // ── Favorites ───────────────────────────────────────────────────────
@@ -97,14 +188,14 @@ class PhotoRepositoryImpl @Inject constructor(
         return photoDao.getFavoritePhotos()
     }
 
-    override suspend fun toggleFavorite(id: Long) {
-        val photo = photoDao.getPhotoById(id) ?: return
+    override suspend fun toggleFavorite(id: Long) = withContext(Dispatchers.IO) {
+        val photo = photoDao.getPhotoById(id) ?: return@withContext
         photoDao.setFavorite(id, !photo.isFavorite)
     }
 
-    override suspend fun setFavoriteMultiple(ids: List<Long>) {
+    override suspend fun setFavoriteMultiple(ids: List<Long>) = withContext(Dispatchers.IO) {
         val photos = ids.mapNotNull { photoDao.getPhotoById(it) }
-        if (photos.isEmpty()) return
+        if (photos.isEmpty()) return@withContext
         val allAreFavorites = photos.all { it.isFavorite }
         photoDao.setFavoriteMultiple(ids, !allAreFavorites)
     }
@@ -115,46 +206,50 @@ class PhotoRepositoryImpl @Inject constructor(
         return photoDao.getTrashPhotos()
     }
 
-    override suspend fun moveToTrash(id: Long) {
+    override suspend fun moveToTrash(id: Long) = withContext(Dispatchers.IO) {
         photoDao.moveToTrash(id)
     }
 
-    override suspend fun moveToTrashMultiple(ids: List<Long>) {
+    override suspend fun moveToTrashMultiple(ids: List<Long>) = withContext(Dispatchers.IO) {
         photoDao.moveToTrashMultiple(ids)
     }
 
-    override suspend fun restoreFromTrash(id: Long) {
+    override suspend fun restoreFromTrash(id: Long) = withContext(Dispatchers.IO) {
         photoDao.restoreFromTrash(id)
     }
 
-    override suspend fun restoreAllFromTrash() {
+    override suspend fun restoreAllFromTrash() = withContext(Dispatchers.IO) {
         val trashPhotos = photoDao.getExpiredTrashPhotos(Long.MAX_VALUE)
         val ids = trashPhotos.map { it.id }
         photoDao.restoreAllFromTrash(ids)
     }
 
-    override suspend fun permanentlyDelete(id: Long) {
-        val photo = photoDao.getPhotoById(id) ?: return
+    override suspend fun permanentlyDelete(id: Long) = withContext(Dispatchers.IO) {
+        val photo = photoDao.getPhotoById(id) ?: return@withContext
         // Delete from device storage
         mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
         // Remove from database
         photoDao.deletePhoto(photo)
+        // Clear thumbnail cache
+        MediaStoreThumbnailFetcher.clearCacheForId(context, id)
     }
 
-    override suspend fun emptyTrash() {
+    override suspend fun emptyTrash() = withContext(Dispatchers.IO) {
         val trashPhotos = photoDao.getExpiredTrashPhotos(Long.MAX_VALUE)
         for (photo in trashPhotos) {
             mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
+            MediaStoreThumbnailFetcher.clearCacheForId(context, photo.id)
         }
         photoDao.emptyTrash()
     }
 
-    override suspend fun cleanupExpiredTrash() {
+    override suspend fun cleanupExpiredTrash() = withContext(Dispatchers.IO) {
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
         val expiredPhotos = photoDao.getExpiredTrashPhotos(thirtyDaysAgo)
         for (photo in expiredPhotos) {
             mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
             photoDao.deletePhoto(photo)
+            MediaStoreThumbnailFetcher.clearCacheForId(context, photo.id)
         }
     }
 
@@ -168,7 +263,7 @@ class PhotoRepositoryImpl @Inject constructor(
         return photoDao.getPhotosByBucket(bucketId)
     }
 
-    override suspend fun syncAlbums() {
+    override suspend fun syncAlbums() = withContext(Dispatchers.IO) {
         val albums = mediaStoreManager.loadAlbums()
         photoDao.deleteAutoAlbums()
         photoDao.insertAlbums(albums)
@@ -194,6 +289,7 @@ class PhotoRepositoryImpl @Inject constructor(
         val deleted = mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
         if (deleted) {
             photoDao.deletePhoto(photo)
+            MediaStoreThumbnailFetcher.clearCacheForId(context, photoId)
         }
         return deleted
     }
@@ -205,10 +301,11 @@ class PhotoRepositoryImpl @Inject constructor(
         return mediaStoreManager.createDeleteIntentSender(uris)
     }
 
-    override suspend fun deleteFromDatabaseMultiple(ids: List<Long>) {
+    override suspend fun deleteFromDatabaseMultiple(ids: List<Long>) = withContext(Dispatchers.IO) {
         val photos = ids.mapNotNull { photoDao.getPhotoById(it) }
         for (photo in photos) {
             mediaStoreManager.deletePhotoFromMediaStore(photo.contentUri)
+            MediaStoreThumbnailFetcher.clearCacheForId(context, photo.id)
         }
         photoDao.deletePhotosByIds(ids)
     }
@@ -324,6 +421,7 @@ class PhotoRepositoryImpl @Inject constructor(
         
         val success = renamePhysicalFile(photo, finalName)
         if (success) {
+            MediaStoreThumbnailFetcher.clearCacheForId(context, id)
             syncPhotos()
             syncAlbums()
         }
@@ -338,6 +436,7 @@ class PhotoRepositoryImpl @Inject constructor(
             val ext = if (extensionIndex != -1) photo.name.substring(extensionIndex) else ""
             val finalName = "${baseName}_${index + 1}$ext"
             if (renamePhysicalFile(photo, finalName)) {
+                MediaStoreThumbnailFetcher.clearCacheForId(context, id)
                 hasAnySuccess = true
             }
         }
@@ -455,8 +554,8 @@ class PhotoRepositoryImpl @Inject constructor(
         return photoDao.getHiddenPhotos()
     }
 
-    override suspend fun toggleHidden(id: Long) {
-        val photo = photoDao.getPhotoById(id) ?: return
+    override suspend fun toggleHidden(id: Long) = withContext(Dispatchers.IO) {
+        val photo = photoDao.getPhotoById(id) ?: return@withContext
         if (photo.isHidden) {
             unhidePhotos(listOf(id))
         } else {

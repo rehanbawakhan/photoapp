@@ -46,7 +46,9 @@ class MediaStoreManager @Inject constructor(
         MediaStore.Images.Media.HEIGHT,
         MediaStore.Images.Media.MIME_TYPE,
         MediaStore.Images.Media.BUCKET_ID,
-        MediaStore.Images.Media.BUCKET_DISPLAY_NAME
+        MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+        MediaStore.Images.Media.LATITUDE,
+        MediaStore.Images.Media.LONGITUDE
     )
 
     private val videoProjection = arrayOf(
@@ -61,7 +63,9 @@ class MediaStoreManager @Inject constructor(
         MediaStore.Video.Media.HEIGHT,
         MediaStore.Video.Media.MIME_TYPE,
         MediaStore.Video.Media.BUCKET_ID,
-        MediaStore.Video.Media.BUCKET_DISPLAY_NAME
+        MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+        MediaStore.Video.Media.LATITUDE,
+        MediaStore.Video.Media.LONGITUDE
     )
 
     // Offset for video IDs in the database to prevent clashes with image IDs
@@ -91,6 +95,8 @@ class MediaStoreManager @Inject constructor(
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
             val bucketIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_ID)
             val bucketNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+            val latitudeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.LATITUDE)
+            val longitudeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.LONGITUDE)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -100,6 +106,8 @@ class MediaStoreManager @Inject constructor(
 
                 val dateTaken = cursor.getLong(dateTakenColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn) * 1000 // Convert to millis
+                val latitude = if (cursor.isNull(latitudeColumn)) null else cursor.getDouble(latitudeColumn)
+                val longitude = if (cursor.isNull(longitudeColumn)) null else cursor.getDouble(longitudeColumn)
 
                 mediaList.add(
                     PhotoEntity(
@@ -115,7 +123,9 @@ class MediaStoreManager @Inject constructor(
                         height = cursor.getInt(heightColumn),
                         mimeType = cursor.getString(mimeTypeColumn) ?: "image/*",
                         bucketId = cursor.getString(bucketIdColumn),
-                        bucketName = cursor.getString(bucketNameColumn)
+                        bucketName = cursor.getString(bucketNameColumn),
+                        latitude = latitude,
+                        longitude = longitude
                     )
                 )
             }
@@ -142,6 +152,8 @@ class MediaStoreManager @Inject constructor(
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
             val bucketIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_ID)
             val bucketNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            val latitudeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.LATITUDE)
+            val longitudeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.LONGITUDE)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -153,6 +165,8 @@ class MediaStoreManager @Inject constructor(
 
                 val dateTaken = cursor.getLong(dateTakenColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn) * 1000 // Convert to millis
+                val latitude = if (cursor.isNull(latitudeColumn)) null else cursor.getDouble(latitudeColumn)
+                val longitude = if (cursor.isNull(longitudeColumn)) null else cursor.getDouble(longitudeColumn)
 
                 mediaList.add(
                     PhotoEntity(
@@ -168,7 +182,9 @@ class MediaStoreManager @Inject constructor(
                         height = cursor.getInt(heightColumn),
                         mimeType = cursor.getString(mimeTypeColumn) ?: "video/*",
                         bucketId = cursor.getString(bucketIdColumn),
-                        bucketName = cursor.getString(bucketNameColumn)
+                        bucketName = cursor.getString(bucketNameColumn),
+                        latitude = latitude,
+                        longitude = longitude
                     )
                 )
             }

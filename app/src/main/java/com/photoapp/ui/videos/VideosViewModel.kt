@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 import com.photoapp.data.local.entities.AlbumEntity
@@ -58,7 +59,11 @@ class VideosViewModel @Inject constructor(
     )
 
     init {
-        syncVideos()
+        viewModelScope.launch {
+            // Delay database sync slightly to allow startup transition animations to complete smoothly
+            delay(1000)
+            syncVideos()
+        }
     }
 
     fun syncVideos() {

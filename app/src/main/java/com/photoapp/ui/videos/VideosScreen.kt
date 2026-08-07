@@ -21,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import com.photoapp.data.local.entities.PhotoEntity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +52,29 @@ fun VideosScreen(
     var showCopyDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showPdfDialog by remember { mutableStateOf(false) }
+
+    val onPhotoClickState = rememberUpdatedState(onPhotoClick)
+    val rememberedOnPhotoClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            if (viewModel.uiState.value.isSelectionMode) {
+                viewModel.toggleSelection(photo.id)
+            } else {
+                onPhotoClickState.value(photo.id)
+            }
+        }
+    }
+
+    val rememberedOnPhotoLongClick = remember(viewModel) {
+        { photo: PhotoEntity ->
+            viewModel.toggleSelection(photo.id)
+        }
+    }
+
+    val rememberedOnSelectionChanged = remember(viewModel) {
+        { ids: Set<Long> ->
+            viewModel.setSelectedIds(ids)
+        }
+    }
 
     BackHandler(enabled = uiState.isSelectionMode) {
         viewModel.clearSelection()
@@ -104,7 +129,6 @@ fun VideosScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(bottom = bottomPadding)
         ) {
             when {
                 uiState.isLoading && uiState.videos.isEmpty() -> {
@@ -126,18 +150,10 @@ fun VideosScreen(
                             photos = uiState.videos,
                             selectedIds = uiState.selectedIds,
                             isSelectionMode = uiState.isSelectionMode,
-                            onPhotoClick = { photo ->
-                                if (uiState.isSelectionMode) {
-                                    viewModel.toggleSelection(photo.id)
-                                } else {
-                                    onPhotoClick(photo.id)
-                                }
-                            },
-                            onPhotoLongClick = { photo ->
-                                viewModel.toggleSelection(photo.id)
-                            },
+                            onPhotoClick = rememberedOnPhotoClick,
+                            onPhotoLongClick = rememberedOnPhotoLongClick,
                             groupByDate = true,
-                            onSelectionChanged = { viewModel.setSelectedIds(it) },
+                            onSelectionChanged = rememberedOnSelectionChanged,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

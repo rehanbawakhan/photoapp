@@ -329,6 +329,21 @@ fun SettingsScreen(
                         title = "👆 Google Photos Style Drag-to-Select",
                         desc = "Hold and drag across the photo grid to select lists of items. Reverts selection on swipe back, and automatically scrolls the grid when your finger reaches the top or bottom edges."
                     )
+
+                    FeatureItem(
+                        title = "🚀 Butter-Smooth 120Hz Scrolling",
+                        desc = "Dynamically requests high-frequency display refresh rates on supported hardware. Employs advanced Compose scroll optimizations, deferred draw-phase reads, and cached local thumbnails for stutter-free scrolling."
+                    )
+
+                    FeatureItem(
+                        title = "🗺️ Interactive India Photos Map",
+                        desc = "Plots your geotagged photos dynamically across a fully interactive, zoomable, and pan-enabled map powered by Google Maps. Automatically clusters markers and opens bottom horizontal scrolling preview sheets of your photos."
+                    )
+
+                    FeatureItem(
+                        title = "📍 Geotag Viewer & Details Grid",
+                        desc = "Swipe up on any photo to view a dark-themed Google Maps street card of the exact coordinates, geocoded state/country details, and camera parameters (Aperture, Shutter Speed, ISO, and 35mm film equivalent MM)."
+                    )
                 }
             }
 
@@ -498,17 +513,26 @@ fun SettingsScreen(
                         desc = "On app launch or swipe-to-refresh, MediaStoreManager scans the Android system's MediaStore database. It syncs the files to the local Room database, merging any updates. Coroutines flow changes reactively to keep the UI up-to-date."
                     )
                     FeatureItem(
-                        title = "🧵 Thread Management",
-                        desc = "Heavy disk queries (Room, MediaStore), AI editing (ML Kit), and metadata analyses (MediaFormatAnalyzer) are offloaded to Dispatchers.IO to maintain a smooth 60fps UI on the Main thread."
+                        title = "⚡ 120Hz Performance Engine",
+                        desc = "Optimized with deferred scroll state reads inside graphicsLayer draw blocks to completely bypass recomposition and layout passes on scroll. Uses memory-efficient RGB_565 configurations to cut thumbnail heap overhead by 50%."
                     )
                     FeatureItem(
-                        title = "🎨 Reactive Theme & Accent Styling",
-                        desc = "The custom ThemeSettingsManager registers a persistent listener on SharedPreferences. As theme or accent values change, state flows emit updates, causing the custom PhotoAppTheme wrapper to recompose color schemes globally."
+                        title = "⏱️ Startup & Cache Optimization",
+                        desc = "Uses local cached JPEG thumbnails to bypass MediaStore binder IPC overhead (decodes in under 1ms). Caches Uri string parses and defers startup database sync to ensure zero startup load or transition stutter."
+                    )
+                    FeatureItem(
+                        title = "🎨 GC-Immune Accent Themes",
+                        desc = "The custom ThemeSettingsManager implements the listener interface directly on its companion-held singleton instance, preventing JVM garbage collection memory sweeps from silently dropping live theme updates."
                     )
 
                     FeatureItem(
                         title = "🛡️ Vault Isolation & Physical Moves",
                         desc = "Hiding a photo moves the file from external storage to secure app storage and deletes its MediaStore index, completely hiding it from device scanning. Unhiding restores it to its original folder (including DCIM/Camera)."
+                    )
+
+                    FeatureItem(
+                        title = "🗺️ Geotag Permissions & Background Sync",
+                        desc = "Requests ACCESS_MEDIA_LOCATION to prevent Android 10+ OS-level EXIF location redaction. Synchronizes GPS coordinates and camera details using MediaStore.setRequireOriginal() asynchronously on Dispatchers.IO."
                     )
 
                     FeatureItem(

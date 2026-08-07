@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 import com.photoapp.data.local.entities.AlbumEntity
@@ -61,7 +62,11 @@ class GalleryViewModel @Inject constructor(
     )
 
     init {
-        syncPhotos()
+        viewModelScope.launch {
+            // Delay database sync slightly to allow startup transition animations to complete smoothly
+            delay(1000)
+            syncPhotos()
+        }
     }
 
     fun syncPhotos() {

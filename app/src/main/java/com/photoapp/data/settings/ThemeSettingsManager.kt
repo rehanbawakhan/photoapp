@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class ThemeSettingsManager private constructor(context: Context) {
+class ThemeSettingsManager private constructor(context: Context) : SharedPreferences.OnSharedPreferenceChangeListener {
 
     private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences(
         PREFS_NAME,
@@ -19,7 +19,7 @@ class ThemeSettingsManager private constructor(context: Context) {
     private val _accentColor = MutableStateFlow(getSavedAccentColor())
     val accentColor: StateFlow<String> = _accentColor.asStateFlow()
 
-    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             KEY_THEME_MODE -> _themeMode.value = getSavedThemeMode()
             KEY_ACCENT_COLOR -> _accentColor.value = getSavedAccentColor()
@@ -28,7 +28,7 @@ class ThemeSettingsManager private constructor(context: Context) {
 
     init {
         // Observe preference changes to keep flows updated
-        prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        prefs.registerOnSharedPreferenceChangeListener(this)
     }
 
     private fun getSavedThemeMode(): String {
@@ -41,10 +41,12 @@ class ThemeSettingsManager private constructor(context: Context) {
 
     fun setThemeMode(mode: String) {
         prefs.edit().putString(KEY_THEME_MODE, mode).apply()
+        _themeMode.value = mode
     }
 
     fun setAccentColor(color: String) {
         prefs.edit().putString(KEY_ACCENT_COLOR, color).apply()
+        _accentColor.value = color
     }
 
     companion object {

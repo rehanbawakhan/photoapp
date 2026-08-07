@@ -58,10 +58,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.coroutineScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Immutable
 import com.photoapp.data.local.entities.PhotoEntity
 import com.photoapp.util.DateUtils
 import kotlinx.coroutines.delay
 
+@Immutable
 data class PhotoGroup(
     val label: String,
     val photos: List<PhotoEntity>
@@ -100,14 +102,62 @@ fun getMonthGroupLabel(timestamp: Long): String {
     return monthYearFormatShort.format(Date(timestamp))
 }
 
+fun getDayGroupLabelOptimized(
+    timestamp: Long,
+    now: Calendar,
+    yesterday: Calendar,
+    photoCal: Calendar,
+    cache: MutableMap<String, String>
+): String {
+    photoCal.timeInMillis = timestamp
+    val year = photoCal.get(Calendar.YEAR)
+    val dayOfYear = photoCal.get(Calendar.DAY_OF_YEAR)
+    val key = "${year}_${dayOfYear}"
+    
+    return cache.getOrPut(key) {
+        val isSameDay = now.get(Calendar.YEAR) == year && now.get(Calendar.DAY_OF_YEAR) == dayOfYear
+        val isYesterday = yesterday.get(Calendar.YEAR) == year && yesterday.get(Calendar.DAY_OF_YEAR) == dayOfYear
+        
+        when {
+            isSameDay -> "Today"
+            isYesterday -> "Yesterday"
+            now.get(Calendar.YEAR) == year -> dayFormatSameYear.format(Date(timestamp))
+            else -> dayFormatDiffYear.format(Date(timestamp))
+        }
+    }
+}
+
+fun getMonthGroupLabelOptimized(
+    timestamp: Long,
+    photoCal: Calendar,
+    cache: MutableMap<String, String>
+): String {
+    photoCal.timeInMillis = timestamp
+    val year = photoCal.get(Calendar.YEAR)
+    val month = photoCal.get(Calendar.MONTH)
+    val key = "${year}_${month}"
+    return cache.getOrPut(key) {
+        monthYearFormatShort.format(Date(timestamp))
+    }
+}
+
 fun groupPhotosByDate(photos: List<PhotoEntity>, columns: Int): List<PhotoGroup> {
+    val now = Calendar.getInstance()
+    val yesterday = Calendar.getInstance().apply {
+        timeInMillis = now.timeInMillis
+        add(Calendar.DAY_OF_YEAR, -1)
+    }
+    val photoCal = Calendar.getInstance()
+    val dayCache = mutableMapOf<String, String>()
+    val monthCache = mutableMapOf<String, String>()
+    
     return if (columns <= 4) {
         photos
-            .groupBy { getDayGroupLabel(it.dateTaken) }
+            .groupBy { getDayGroupLabelOptimized(it.dateTaken, now, yesterday, photoCal, dayCache) }
             .map { (label, photos) -> PhotoGroup(label, photos) }
     } else {
         photos
-            .groupBy { getMonthGroupLabel(it.dateTaken) }
+            .groupBy { getMonthGroupLabelOptimized(it.dateTaken, photoCal, monthCache) }
             .map { (label, photos) -> PhotoGroup(label, photos) }
     }
 }
@@ -200,6 +250,14 @@ fun PhotoGrid(
     val gridState = rememberLazyGridState()
     var gridColumns by rememberSaveable { mutableIntStateOf(columns) }
     val scope = rememberCoroutineScope()
+
+    val onLongClickAction = remember(onSelectionChanged, onPhotoLongClick) {
+        { p: PhotoEntity ->
+            if (onSelectionChanged == null) {
+                onPhotoLongClick(p)
+            }
+        }
+    }
 
     val currentPhotosState = rememberUpdatedState(photos)
     val currentSelectedIdsState = rememberUpdatedState(selectedIds)
@@ -373,7 +431,7 @@ fun PhotoGrid(
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(gridColumns),
-                contentPadding = PaddingValues(2.dp),
+                contentPadding = PaddingValues(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 100.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier.fillMaxSize().then(zoomModifier).then(dragSelectModifier)
@@ -433,12 +491,8 @@ fun PhotoGrid(
                             photo = photo,
                             isSelected = photo.id in selectedIds,
                             isSelectionMode = isSelectionMode,
-                            onClick = { onPhotoClick(photo) },
-                            onLongClick = {
-                                if (onSelectionChanged == null) {
-                                    onPhotoLongClick(photo)
-                                }
-                            }
+                            onClick = onPhotoClick,
+                            onLongClick = onLongClickAction
                         )
                     }
                 }
@@ -447,7 +501,7 @@ fun PhotoGrid(
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(gridColumns),
-                contentPadding = PaddingValues(2.dp),
+                contentPadding = PaddingValues(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 100.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier.fillMaxSize().then(zoomModifier).then(dragSelectModifier)
@@ -460,12 +514,8 @@ fun PhotoGrid(
                         photo = photo,
                         isSelected = photo.id in selectedIds,
                         isSelectionMode = isSelectionMode,
-                        onClick = { onPhotoClick(photo) },
-                        onLongClick = {
-                            if (onSelectionChanged == null) {
-                                onPhotoLongClick(photo)
-                            }
-                        }
+                        onClick = onPhotoClick,
+                        onLongClick = onLongClickAction
                     )
                 }
             }
@@ -517,53 +567,69 @@ fun VerticalScrollbar(
         }
     }
 
-    // Compute layout properties reactively inside derivedStateOf to trigger recomposition on scroll changes
-    val scrollbarData by remember(state) {
+    val showScrollbar by remember(state) {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
             val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) {
-                ScrollbarData(
-                    showScrollbar = false,
-                    totalItems = 0,
-                    thumbHeightPercent = 1f,
-                    scrollPercent = 0f,
-                    firstVisibleIndex = 0
-                )
-            } else {
+            if (visibleItems.isEmpty()) false
+            else {
                 val totalItems = layoutInfo.totalItemsCount
                 val firstVisibleIndex = visibleItems.first().index
                 val lastVisibleIndex = visibleItems.last().index
                 val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
-                val showScrollbar = visibleCount < totalItems
-
-                val thumbHeightPercent = (visibleCount.toFloat() / totalItems.toFloat()).coerceIn(0.1f, 0.9f)
-                val scrollPercent = firstVisibleIndex.toFloat() / (totalItems - visibleCount).coerceAtLeast(1)
-
-                ScrollbarData(
-                    showScrollbar = showScrollbar,
-                    totalItems = totalItems,
-                    thumbHeightPercent = thumbHeightPercent,
-                    scrollPercent = scrollPercent,
-                    firstVisibleIndex = firstVisibleIndex
-                )
+                visibleCount < totalItems
             }
         }
     }
 
-    if (!scrollbarData.showScrollbar) return
-
-    val currentScrollLabel by remember(scrollbarData.firstVisibleIndex, labelProvider) {
+    val thumbHeightPercent by remember(state) {
         derivedStateOf {
-            if (labelProvider == null) ""
+            val layoutInfo = state.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) 1f
             else {
-                labelProvider(scrollbarData.firstVisibleIndex)
+                val totalItems = layoutInfo.totalItemsCount
+                val firstVisibleIndex = visibleItems.first().index
+                val lastVisibleIndex = visibleItems.last().index
+                val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
+                (visibleCount.toFloat() / totalItems.toFloat()).coerceIn(0.1f, 0.9f)
             }
         }
     }
 
-    val thumbHeightPercent = scrollbarData.thumbHeightPercent
-    val scrollPercent = scrollbarData.scrollPercent
+    val scrollPercentState = remember(state) {
+        derivedStateOf {
+            val layoutInfo = state.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) 0f
+            else {
+                val totalItems = layoutInfo.totalItemsCount
+                val firstVisibleIndex = visibleItems.first().index
+                val lastVisibleIndex = visibleItems.last().index
+                val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
+                firstVisibleIndex.toFloat() / (totalItems - visibleCount).coerceAtLeast(1)
+            }
+        }
+    }
+
+    val firstVisibleIndexState = remember(state) {
+        derivedStateOf {
+            val visibleItems = state.layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) 0 else visibleItems.first().index
+        }
+    }
+
+    if (!showScrollbar) return
+
+    val currentScrollLabel by remember(labelProvider) {
+        derivedStateOf {
+            val provider = labelProvider
+            if (provider == null) ""
+            else {
+                provider(firstVisibleIndexState.value)
+            }
+        }
+    }
 
     AnimatedVisibility(
         visible = isScrolling,
@@ -596,7 +662,7 @@ fun VerticalScrollbar(
                                 val height = size.height
                                 if (height > 0) {
                                     val touchPercent = (y / height).coerceIn(0f, 1f)
-                                    val totalItems = scrollbarData.totalItems
+                                    val totalItems = state.layoutInfo.totalItemsCount
                                     val targetIndex = (touchPercent * totalItems).toInt().coerceIn(0, totalItems - 1)
                                     scrollJob?.cancel()
                                     scrollJob = coroutineScope.launch {
@@ -629,10 +695,11 @@ fun VerticalScrollbar(
                     .align(Alignment.TopEnd)
                     .padding(end = 15.dp)
                     .graphicsLayer {
+                        val percent = scrollPercentState.value
                         val parentHeight = size.height / thumbHeightPercent.coerceAtLeast(0.01f)
                         val thumbHeight = size.height
                         val maxTranslation = parentHeight - thumbHeight
-                        translationY = maxTranslation * scrollPercent
+                        translationY = maxTranslation * percent
                     }
                     .background(
                         color = accentColor,
@@ -646,10 +713,11 @@ fun VerticalScrollbar(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .graphicsLayer {
+                            val percent = scrollPercentState.value
                             val parentHeight = size.height / thumbHeightPercent.coerceAtLeast(0.01f)
                             val thumbHeight = size.height
                             val maxTranslation = parentHeight - thumbHeight
-                            translationY = maxTranslation * scrollPercent + (thumbHeight / 2) - 18.dp.toPx()
+                            translationY = maxTranslation * percent + (thumbHeight / 2) - 18.dp.toPx()
                         }
                         .padding(end = 36.dp) // Positioned to the left of the scroll handle
                         .background(

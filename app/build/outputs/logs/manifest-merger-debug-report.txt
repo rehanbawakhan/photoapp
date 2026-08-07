@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-47:12
-INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-47:12
-INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-47:12
-INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-47:12
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-50:12
+INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-50:12
+INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-50:12
+INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:1-50:12
 MERGED from [io.coil-kt:coil-video:2.7.0] C:\Users\rehan\.gradle\caches\9.0.0\transforms\bfb2d57c18ed33bb57db25a83e98620f\transformed\coil-video-2.7.0\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.media3:media3-ui:1.4.1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\0e3c25cdf872dcb4ecc5b92a564e7997\transformed\media3-ui-1.4.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.media3:media3-extractor:1.4.1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\adf917030e744fdd56cc9b71c77ca735\transformed\media3-extractor-1.4.1\AndroidManifest.xml:17:1-22:12
@@ -120,49 +120,55 @@ MERGED from [com.google.android.odml:image:1.0.0-beta1] C:\Users\rehan\.gradle\c
 		INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml
 	xmlns:android
 		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:2:11-69
+uses-permission#android.permission.INTERNET
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:6:5-67
+MERGED from [com.google.android.datatransport:transport-backend-cct:2.3.3] C:\Users\rehan\.gradle\caches\9.0.0\transforms\32b95823c9e08b73a6598b63ff731551\transformed\transport-backend-cct-2.3.3\AndroidManifest.xml:26:5-67
+MERGED from [com.google.android.datatransport:transport-backend-cct:2.3.3] C:\Users\rehan\.gradle\caches\9.0.0\transforms\32b95823c9e08b73a6598b63ff731551\transformed\transport-backend-cct-2.3.3\AndroidManifest.xml:26:5-67
+	android:name
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:6:22-64
 uses-permission#android.permission.READ_EXTERNAL_STORAGE
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:6:5-7:38
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:9:5-10:38
 	android:maxSdkVersion
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:7:9-35
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:10:9-35
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:6:22-77
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:9:22-77
 uses-permission#android.permission.WRITE_EXTERNAL_STORAGE
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:8:5-10:40
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:11:5-13:40
 	android:maxSdkVersion
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:9:9-35
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:12:9-35
 	tools:ignore
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:10:9-37
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:13:9-37
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:8:22-78
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:11:22-78
 uses-permission#android.permission.READ_MEDIA_IMAGES
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:13:5-76
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:16:5-76
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:13:22-73
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:16:22-73
 uses-permission#android.permission.READ_MEDIA_VIDEO
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:14:5-75
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:17:5-75
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:14:22-72
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:17:22-72
 uses-permission#android.permission.MANAGE_MEDIA
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:17:5-71
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:20:5-71
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:17:22-68
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:20:22-68
 uses-permission#android.permission.ACCESS_MEDIA_LOCATION
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:18:5-80
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:21:5-80
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:18:22-77
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:21:22-77
 uses-permission#android.permission.SET_WALLPAPER
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:21:5-72
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:24:5-72
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:21:22-69
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:24:22-69
 uses-permission#android.permission.MANAGE_EXTERNAL_STORAGE
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:22:5-23:40
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:25:5-26:40
 	tools:ignore
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:23:9-37
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:26:9-37
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:22:22-79
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:25:22-79
 application
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:25:5-45:19
-INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:25:5-45:19
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:28:5-48:19
+INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:28:5-48:19
 MERGED from [com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\5aff5d86a3eb5f5d518f214ac4913516\transformed\play-services-mlkit-subject-segmentation-16.0.0-beta1\AndroidManifest.xml:7:5-15:19
 MERGED from [com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\5aff5d86a3eb5f5d518f214ac4913516\transformed\play-services-mlkit-subject-segmentation-16.0.0-beta1\AndroidManifest.xml:7:5-15:19
 MERGED from [com.google.mlkit:vision-common:17.3.0] C:\Users\rehan\.gradle\caches\9.0.0\transforms\c5a9d6f948949b4751bdcc5eb77dcf37\transformed\vision-common-17.3.0\AndroidManifest.xml:8:5-16:19
@@ -202,41 +208,41 @@ MERGED from [com.google.android.odml:image:1.0.0-beta1] C:\Users\rehan\.gradle\c
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.15.0] C:\Users\rehan\.gradle\caches\9.0.0\transforms\4b70ec55adbf8eaf0dbfe4c53c5e0dad\transformed\core-1.15.0\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:31:9-35
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:34:9-35
 	android:label
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:29:9-41
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:32:9-41
 	android:roundIcon
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:30:9-54
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:33:9-54
 	tools:targetApi
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:33:9-29
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:36:9-29
 	android:icon
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:28:9-43
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:31:9-43
 	android:allowBackup
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:27:9-35
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:30:9-35
 	android:theme
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:32:9-46
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:35:9-46
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:26:9-33
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:29:9-33
 activity#com.photoapp.MainActivity
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:35:9-44:20
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:38:9-47:20
 	android:windowSoftInputMode
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:38:13-55
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:41:13-55
 	android:exported
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:37:13-36
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:40:13-36
 	android:theme
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:39:13-50
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:42:13-50
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:36:13-41
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:39:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:40:13-43:29
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:43:13-46:29
 action#android.intent.action.MAIN
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:41:17-69
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:44:17-69
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:41:25-66
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:44:25-66
 category#android.intent.category.LAUNCHER
-ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:42:17-77
+ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:45:17-77
 	android:name
-		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:42:27-74
+		ADDED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml:45:27-74
 uses-sdk
 INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from D:\android apps\photoapp\app\src\main\AndroidManifest.xml
@@ -595,10 +601,6 @@ ADDED from [androidx.room:room-runtime:2.6.1] C:\Users\rehan\.gradle\caches\9.0.
 		ADDED from [androidx.room:room-runtime:2.6.1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\14d1b79194993adb0d30f960905f82dc\transformed\room-runtime-2.6.1\AndroidManifest.xml:26:13-43
 	android:name
 		ADDED from [androidx.room:room-runtime:2.6.1] C:\Users\rehan\.gradle\caches\9.0.0\transforms\14d1b79194993adb0d30f960905f82dc\transformed\room-runtime-2.6.1\AndroidManifest.xml:25:13-74
-uses-permission#android.permission.INTERNET
-ADDED from [com.google.android.datatransport:transport-backend-cct:2.3.3] C:\Users\rehan\.gradle\caches\9.0.0\transforms\32b95823c9e08b73a6598b63ff731551\transformed\transport-backend-cct-2.3.3\AndroidManifest.xml:26:5-67
-	android:name
-		ADDED from [com.google.android.datatransport:transport-backend-cct:2.3.3] C:\Users\rehan\.gradle\caches\9.0.0\transforms\32b95823c9e08b73a6598b63ff731551\transformed\transport-backend-cct-2.3.3\AndroidManifest.xml:26:22-64
 service#com.google.android.datatransport.runtime.backends.TransportBackendDiscovery
 ADDED from [com.google.android.datatransport:transport-backend-cct:2.3.3] C:\Users\rehan\.gradle\caches\9.0.0\transforms\32b95823c9e08b73a6598b63ff731551\transformed\transport-backend-cct-2.3.3\AndroidManifest.xml:29:9-35:19
 MERGED from [com.google.android.datatransport:transport-runtime:2.2.6] C:\Users\rehan\.gradle\caches\9.0.0\transforms\364bbfb445c139b6b5687994b1b1f958\transformed\transport-runtime-2.2.6\AndroidManifest.xml:36:9-38:40

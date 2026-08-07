@@ -59,6 +59,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         enableEdgeToEdge()
 
         hasPermissionState.value = checkPermissions()
+        setHighRefreshRate()
 
         setContent {
             PhotoAppTheme {
@@ -84,8 +85,19 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-check permissions when coming back from settings
-        hasPermissionState.value = checkPermissions()
+        val permissionsCheck = checkPermissions()
+        hasPermissionState.value = permissionsCheck
+        if (permissionsCheck) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.ACCESS_MEDIA_LOCATION),
+                        PERMISSION_REQUEST_CODE
+                    )
+                }
+            }
+        }
     }
 
     private fun checkPermissions(): Boolean {
@@ -112,11 +124,14 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 startActivity(intent)
             }
         } else {
-            val permissions = arrayOf(
+            val permissions = mutableListOf(
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
             )
-            ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                permissions.add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+            }
+            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
         }
     }
 
@@ -131,6 +146,46 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permissions granted, recreate to refresh
                 recreate()
+            }
+        }
+    }
+
+    private fun setHighRefreshRate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    display
+                } else {
+                    @Suppress("DEPRECATION")
+                    windowManager.defaultDisplay
+                }
+                display?.let {
+                    val supportedModes = it.supportedModes
+                    val highRefreshMode = supportedModes
+                        .filter { mode -> mode.refreshRate >= 110f }
+                        .maxByOrNull { mode -> mode.refreshRate }
+                    
+                    val targetMode = highRefreshMode ?: supportedModes.maxByOrNull { mode -> mode.refreshRate }
+                    
+                    targetMode?.let { mode ->
+                        if (mode.refreshRate > 60f) {
+                            val layoutParams = window.attributes
+                            layoutParams.preferredDisplayModeId = mode.modeId
+                            layoutParams.preferredRefreshRate = mode.refreshRate
+                            window.attributes = layoutParams
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                val layoutParams = window.attributes
+                layoutParams.preferredRefreshRate = 120f
+                window.attributes = layoutParams
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

@@ -40,6 +40,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.photoapp.data.local.entities.PhotoEntity
 import com.photoapp.ui.theme.FavoriteRed
+import android.graphics.Bitmap
 import androidx.compose.runtime.remember
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -48,8 +49,8 @@ fun PhotoThumbnail(
     photo: PhotoEntity,
     isSelected: Boolean,
     isSelectionMode: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onClick: (PhotoEntity) -> Unit,
+    onLongClick: (PhotoEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scale by animateFloatAsState(
@@ -61,15 +62,11 @@ fun PhotoThumbnail(
     val context = LocalContext.current
     val isVideo = photo.mimeType.startsWith("video/")
 
-    val imageRequest = remember(photo.contentUri, isVideo) {
+    val imageRequest = remember(photo.uri) {
         ImageRequest.Builder(context)
             .data(photo.contentUri)
-            .apply {
-                if (isVideo) {
-                    decoderFactory(coil.decode.VideoFrameDecoder.Factory())
-                }
-            }
-            .crossfade(true)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .crossfade(false)
             .size(300)
             .build()
     }
@@ -83,8 +80,8 @@ fun PhotoThumbnail(
             }
             .clip(RoundedCornerShape(6.dp))
             .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+                onClick = { onClick(photo) },
+                onLongClick = { onLongClick(photo) }
             )
     ) {
         // Image / Video frame

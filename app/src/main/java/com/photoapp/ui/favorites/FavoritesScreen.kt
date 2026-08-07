@@ -14,6 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import com.photoapp.data.local.entities.PhotoEntity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.photoapp.ui.components.EmptyState
@@ -28,6 +31,16 @@ fun FavoritesScreen(
     viewModel: FavoritesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    val onPhotoClickState = rememberUpdatedState(onPhotoClick)
+    val rememberedOnPhotoClick = remember {
+        { photo: PhotoEntity ->
+            onPhotoClickState.value(photo.id)
+        }
+    }
+    val rememberedOnPhotoLongClick = remember {
+        { _: PhotoEntity -> }
+    }
 
     Scaffold(
         topBar = {
@@ -55,13 +68,12 @@ fun FavoritesScreen(
                 photos = uiState.photos,
                 selectedIds = emptySet(),
                 isSelectionMode = false,
-                onPhotoClick = { onPhotoClick(it.id) },
-                onPhotoLongClick = { },
+                onPhotoClick = rememberedOnPhotoClick,
+                onPhotoLongClick = rememberedOnPhotoLongClick,
                 groupByDate = false,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(bottom = bottomPadding)
             )
         }
     }

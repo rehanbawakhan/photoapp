@@ -53,6 +53,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import com.photoapp.data.local.entities.PhotoEntity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -280,7 +282,6 @@ private fun AlbumGridView(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(bottom = bottomPadding)
         ) {
             LazyVerticalGrid(
                 state = gridState,
@@ -466,7 +467,7 @@ private fun AlbumCard(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(album.coverPhotoUri)
-                        .crossfade(true)
+                        .crossfade(false)
                         .size(400)
                         .build(),
                     contentDescription = album.name,
@@ -538,6 +539,20 @@ private fun AlbumDetailView(
     onHideSelection: () -> Unit,
     bottomPadding: Dp = 0.dp
 ) {
+    val onPhotoClickState = rememberUpdatedState(onPhotoClick)
+    val rememberedOnPhotoClick = remember {
+        { photo: PhotoEntity ->
+            onPhotoClickState.value(photo.id)
+        }
+    }
+
+    val onPhotoLongClickState = rememberUpdatedState(onPhotoLongClick)
+    val rememberedOnPhotoLongClick = remember {
+        { photo: PhotoEntity ->
+            onPhotoLongClickState.value(photo.id)
+        }
+    }
+
     Scaffold(
         topBar = {
             if (isSelectionMode) {
@@ -591,14 +606,13 @@ private fun AlbumDetailView(
             photos = photos,
             selectedIds = selectedIds,
             isSelectionMode = isSelectionMode,
-            onPhotoClick = { onPhotoClick(it.id) },
-            onPhotoLongClick = { onPhotoLongClick(it.id) },
+            onPhotoClick = rememberedOnPhotoClick,
+            onPhotoLongClick = rememberedOnPhotoLongClick,
             groupByDate = true,
             onSelectionChanged = onSelectionChanged,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(bottom = bottomPadding)
         )
     }
 }

@@ -1,0 +1,4 @@
+com.photoapp.test.app-androidTest-0 D:\android apps\photoapp\app\build\generated\res\resValues\androidTest\debug
+com.photoapp.test.app-mergeDebugAndroidTestResources-1 D:\android apps\photoapp\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
+com.photoapp.test.app-mergeDebugAndroidTestResources-2 D:\android apps\photoapp\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
+com.photoapp.test.app-debugAndroidTest-3 D:\android apps\photoapp\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

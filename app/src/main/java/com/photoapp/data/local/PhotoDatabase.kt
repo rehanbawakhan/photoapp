@@ -7,7 +7,7 @@ import com.photoapp.data.local.entities.PhotoEntity
 
 @Database(
     entities = [PhotoEntity::class, AlbumEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class PhotoDatabase : RoomDatabase() {
