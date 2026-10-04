@@ -121,4 +121,5 @@ dependencies {
 
     // Biometric
     implementation(libs.androidx.biometric)
+
 }

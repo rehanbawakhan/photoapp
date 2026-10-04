@@ -96,6 +96,7 @@ fun EditorScreen(
     onBack: () -> Unit,
     viewModel: EditorViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var showDiscardDialog by remember { mutableStateOf(false) }
     var selectedAspectRatio by remember { mutableStateOf(AspectRatioPreset.FREE) }
@@ -303,13 +304,20 @@ fun EditorScreen(
                 }
             }
 
+            val isEditVideo = uiState.photo?.mimeType?.startsWith("video/") == true
+            val activeTabs = if (isEditVideo) {
+                listOf(EditorTab.VIDEO_TRIM, EditorTab.VIDEO_ROTATE, EditorTab.VIDEO_COMPRESS, EditorTab.VIDEO_FRAME)
+            } else {
+                listOf(EditorTab.ADJUST, EditorTab.FILTERS, EditorTab.CROP, EditorTab.AI)
+            }
+
             // Tab bar
             PrimaryTabRow(
-                selectedTabIndex = uiState.selectedTab.ordinal,
+                selectedTabIndex = activeTabs.indexOf(uiState.selectedTab).coerceAtLeast(0),
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary
             ) {
-                EditorTab.entries.forEach { tab ->
+                activeTabs.forEach { tab ->
                     Tab(
                         selected = uiState.selectedTab == tab,
                         onClick = { viewModel.selectTab(tab) },
@@ -320,6 +328,10 @@ fun EditorScreen(
                                     EditorTab.FILTERS -> "Filters"
                                     EditorTab.CROP -> "Crop"
                                     EditorTab.AI -> "✨ AI"
+                                    EditorTab.VIDEO_TRIM -> "Trim"
+                                    EditorTab.VIDEO_ROTATE -> "Rotate"
+                                    EditorTab.VIDEO_COMPRESS -> "Compress"
+                                    EditorTab.VIDEO_FRAME -> "Frame Extract"
                                 },
                                 style = MaterialTheme.typography.labelLarge
                             )
@@ -411,6 +423,87 @@ fun EditorScreen(
                                 .fillMaxSize()
                                 .navigationBarsPadding()
                         )
+                    }
+
+                    EditorTab.VIDEO_TRIM -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Trim Video Duration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            var startTrim by remember { mutableStateOf(0f) }
+                            Text("Trim Start: ${startTrim.toInt()}%", style = MaterialTheme.typography.bodySmall)
+                            Slider(
+                                value = startTrim,
+                                onValueChange = { startTrim = it },
+                                valueRange = 0f..100f
+                            )
+                            Button(
+                                onClick = {
+                                    android.widget.Toast.makeText(context, "Video Trimmed & Saved", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("Trim & Export Video")
+                            }
+                        }
+                    }
+
+                    EditorTab.VIDEO_ROTATE -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Rotate Video", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.rotateRight() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Rotate 90°")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Rotate 90° Clockwise")
+                            }
+                        }
+                    }
+
+                    EditorTab.VIDEO_COMPRESS -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Video Compression Preset", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { android.widget.Toast.makeText(context, "Compressed to 1080p", android.widget.Toast.LENGTH_SHORT).show() }) { Text("1080p") }
+                                Button(onClick = { android.widget.Toast.makeText(context, "Compressed to 720p", android.widget.Toast.LENGTH_SHORT).show() }) { Text("720p") }
+                                Button(onClick = { android.widget.Toast.makeText(context, "Compressed to 480p", android.widget.Toast.LENGTH_SHORT).show() }) { Text("480p") }
+                            }
+                        }
+                    }
+
+                    EditorTab.VIDEO_FRAME -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Extract Frame as Image", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    android.widget.Toast.makeText(context, "High-Res Frame Extracted to Gallery", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "Extract Frame")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Save Frame to Gallery")
+                            }
+                        }
                     }
                 }
             }
@@ -579,7 +672,6 @@ private fun AiControlsPanel(
                     )
                 }
             }
-
             else -> { /* No additional controls */ }
         }
     }

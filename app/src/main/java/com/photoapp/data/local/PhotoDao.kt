@@ -122,6 +122,18 @@ interface PhotoDao {
     """)
     fun searchPhotos(query: String): Flow<List<PhotoEntity>>
 
+    @Query("""
+        SELECT * FROM photos 
+        WHERE isDeleted = 0 AND isHidden = 0 AND (
+            name LIKE '%' || :query || '%' OR 
+            path LIKE '%' || :query || '%' OR 
+            bucketName LIKE '%' || :query || '%' OR 
+            mimeType LIKE '%' || :query || '%'
+        )
+        ORDER BY dateTaken DESC
+    """)
+    fun searchPhotosAdvanced(query: String): Flow<List<PhotoEntity>>
+
     // ── Stats ───────────────────────────────────────────────────────────
 
     @Query("SELECT COUNT(*) FROM photos WHERE isDeleted = 0 AND isHidden = 0")
@@ -149,4 +161,35 @@ interface PhotoDao {
 
     @Query("SELECT COUNT(*) FROM photos WHERE isHidden = 1 AND isDeleted = 0")
     fun getHiddenCount(): Flow<Int>
+
+    // ── Favorite Records Persistence ────────────────────────────────────
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFavoriteRecord(record: com.photoapp.data.local.entities.FavoriteRecord)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFavoriteRecords(records: List<com.photoapp.data.local.entities.FavoriteRecord>)
+
+    @Query("DELETE FROM favorite_records WHERE path = :path")
+    suspend fun deleteFavoriteRecord(path: String)
+
+    @Query("DELETE FROM favorite_records WHERE path IN (:paths)")
+    suspend fun deleteFavoriteRecords(paths: List<String>)
+
+    @Query("SELECT * FROM favorite_records")
+    suspend fun getAllFavoriteRecords(): List<com.photoapp.data.local.entities.FavoriteRecord>
+
+    // ── Hidden Records Persistence ──────────────────────────────────────
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHiddenRecord(record: com.photoapp.data.local.entities.HiddenRecord)
+
+    @Query("DELETE FROM hidden_records WHERE path = :path")
+    suspend fun deleteHiddenRecord(path: String)
+
+    @Query("DELETE FROM hidden_records WHERE path IN (:paths)")
+    suspend fun deleteHiddenRecords(paths: List<String>)
+
+    @Query("SELECT * FROM hidden_records")
+    suspend fun getAllHiddenRecords(): List<com.photoapp.data.local.entities.HiddenRecord>
 }

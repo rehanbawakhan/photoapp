@@ -101,18 +101,32 @@ class PhotoRepositoryImpl @Inject constructor(
         val mediaPhotos = mediaStoreManager.loadPhotos()
         val existingPhotos = photoDao.getAllPhotosList()
 
-        // Create a map of existing photos for quick lookup
-        val existingMap = existingPhotos.associateBy { it.id }
+        val favoriteRecords = photoDao.getAllFavoriteRecords()
+        val favoritePaths = favoriteRecords.map { it.path }.toSet()
+        val favoriteSignatures = favoriteRecords.map { "${it.name}_${it.size}" }.toSet()
+
+        // Maps for quick lookup by ID, Path, or Signature (Name + Size)
+        val existingById = existingPhotos.associateBy { it.id }
+        val existingByPath = existingPhotos.associateBy { it.path }
+        val existingBySig = existingPhotos.associateBy { "${it.name}_${it.size}" }
         
         val toInsert = mutableListOf<PhotoEntity>()
         val toDelete = mutableListOf<Long>()
 
         // Find new or modified photos
         for (mediaPhoto in mediaPhotos) {
-            val existing = existingMap[mediaPhoto.id]
+            val existing = existingById[mediaPhoto.id] 
+                ?: existingByPath[mediaPhoto.path] 
+                ?: existingBySig["${mediaPhoto.name}_${mediaPhoto.size}"]
+
+            val isFav = (existing?.isFavorite == true) || (mediaPhoto.path in favoritePaths) || ("${mediaPhoto.name}_${mediaPhoto.size}" in favoriteSignatures)
+            val isDel = existing?.isDeleted == true
+            val dateDel = existing?.dateDeleted
+            val isHid = existing?.isHidden == true
+
             if (existing == null) {
                 // New photo
-                var photoWithLocation = mediaPhoto
+                var photoWithLocation = mediaPhoto.copy(isFavorite = isFav)
                 if (photoWithLocation.latitude == null || photoWithLocation.longitude == null || 
                     (photoWithLocation.latitude == 0.0 && photoWithLocation.longitude == 0.0)) {
                     val isVideo = photoWithLocation.mimeType.startsWith("video/")
@@ -122,10 +136,15 @@ class PhotoRepositoryImpl @Inject constructor(
                     }
                 }
                 toInsert.add(photoWithLocation)
+                if (isFav) {
+                    photoDao.insertFavoriteRecord(com.photoapp.data.local.entities.FavoriteRecord(mediaPhoto.path, mediaPhoto.name, mediaPhoto.size))
+                }
             } else if (existing.dateModified != mediaPhoto.dateModified || 
                        existing.size != mediaPhoto.size || 
-                       existing.path != mediaPhoto.path) {
-                // Modified photo: copy favorite/deleted/hidden states
+                       existing.path != mediaPhoto.path ||
+                       existing.id != mediaPhoto.id ||
+                       existing.isFavorite != isFav) {
+                // Modified / re-indexed photo: maintain favorite, deleted, hidden state
                 var photoWithLocation = mediaPhoto
                 if (photoWithLocation.latitude == null || photoWithLocation.longitude == null || 
                     (photoWithLocation.latitude == 0.0 && photoWithLocation.longitude == 0.0)) {
@@ -137,10 +156,10 @@ class PhotoRepositoryImpl @Inject constructor(
                 }
                 toInsert.add(
                     photoWithLocation.copy(
-                        isFavorite = existing.isFavorite,
-                        isDeleted = existing.isDeleted,
-                        dateDeleted = existing.dateDeleted,
-                        isHidden = existing.isHidden
+                        isFavorite = isFav,
+                        isDeleted = isDel,
+                        dateDeleted = dateDel,
+                        isHidden = isHid
                     )
                 )
             }
@@ -148,8 +167,9 @@ class PhotoRepositoryImpl @Inject constructor(
 
         // Find deleted photos (exist in local DB but no longer in MediaStore)
         val mediaIds = mediaPhotos.map { it.id }.toSet()
+        val mediaPaths = mediaPhotos.map { it.path }.toSet()
         for (existing in existingPhotos) {
-            if (existing.id !in mediaIds && !existing.isHidden) {
+            if (existing.id !in mediaIds && existing.path !in mediaPaths && !existing.isHidden && !existing.isDeleted) {
                 toDelete.add(existing.id)
             }
         }
@@ -160,6 +180,53 @@ class PhotoRepositoryImpl @Inject constructor(
         }
         if (toDelete.isNotEmpty()) {
             photoDao.deletePhotosByIds(toDelete)
+        }
+
+        // Scan Hidden directory to ensure hidden files are retained in DB
+        val hiddenDir = context.getExternalFilesDir("Hidden") ?: File(context.filesDir, "Hidden")
+        if (!hiddenDir.exists()) hiddenDir.mkdirs()
+        val nomediaFile = File(hiddenDir, ".nomedia")
+        if (!nomediaFile.exists()) {
+            try { nomediaFile.createNewFile() } catch (_: Exception) {}
+        }
+
+        val hiddenFiles = hiddenDir.listFiles()?.filter { it.isFile && it.name != ".nomedia" } ?: emptyList()
+        if (hiddenFiles.isNotEmpty()) {
+            val hiddenRecords = photoDao.getAllHiddenRecords().associateBy { it.path }
+            val currentHiddenPaths = photoDao.getAllPhotosList().filter { it.isHidden }.map { it.path }.toSet()
+            val missingHiddenEntities = mutableListOf<PhotoEntity>()
+
+            for (hfile in hiddenFiles) {
+                if (hfile.absolutePath !in currentHiddenPaths) {
+                    val record = hiddenRecords[hfile.absolutePath]
+                    val now = System.currentTimeMillis()
+                    val photoEntity = PhotoEntity(
+                        id = Math.abs(hfile.absolutePath.hashCode().toLong()) and Long.MAX_VALUE,
+                        uri = Uri.fromFile(hfile).toString(),
+                        name = record?.name ?: hfile.name,
+                        path = hfile.absolutePath,
+                        dateAdded = record?.dateAdded ?: now,
+                        dateTaken = record?.dateTaken ?: now,
+                        dateModified = record?.dateModified ?: hfile.lastModified(),
+                        size = record?.size ?: hfile.length(),
+                        width = record?.width ?: 1080,
+                        height = record?.height ?: 1920,
+                        mimeType = record?.mimeType ?: if (hfile.name.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "image/jpeg",
+                        bucketId = record?.bucketId ?: "hidden",
+                        bucketName = record?.bucketName ?: "Hidden",
+                        latitude = record?.latitude,
+                        longitude = record?.longitude,
+                        isHidden = true,
+                        isDeleted = false,
+                        isFavorite = false
+                    )
+                    missingHiddenEntities.add(photoEntity)
+                }
+            }
+
+            if (missingHiddenEntities.isNotEmpty()) {
+                photoDao.insertPhotos(missingHiddenEntities)
+            }
         }
 
         // Scan existing photos in the database that are missing location metadata and update them
@@ -190,14 +257,27 @@ class PhotoRepositoryImpl @Inject constructor(
 
     override suspend fun toggleFavorite(id: Long) = withContext(Dispatchers.IO) {
         val photo = photoDao.getPhotoById(id) ?: return@withContext
-        photoDao.setFavorite(id, !photo.isFavorite)
+        val newFav = !photo.isFavorite
+        photoDao.setFavorite(id, newFav)
+        if (newFav) {
+            photoDao.insertFavoriteRecord(com.photoapp.data.local.entities.FavoriteRecord(photo.path, photo.name, photo.size))
+        } else {
+            photoDao.deleteFavoriteRecord(photo.path)
+        }
     }
 
     override suspend fun setFavoriteMultiple(ids: List<Long>) = withContext(Dispatchers.IO) {
         val photos = ids.mapNotNull { photoDao.getPhotoById(it) }
         if (photos.isEmpty()) return@withContext
-        val allAreFavorites = photos.all { it.isFavorite }
-        photoDao.setFavoriteMultiple(ids, !allAreFavorites)
+        val targetFav = !photos.all { it.isFavorite }
+        photoDao.setFavoriteMultiple(ids, targetFav)
+        for (photo in photos) {
+            if (targetFav) {
+                photoDao.insertFavoriteRecord(com.photoapp.data.local.entities.FavoriteRecord(photo.path, photo.name, photo.size))
+            } else {
+                photoDao.deleteFavoriteRecord(photo.path)
+            }
+        }
     }
 
     // ── Trash ───────────────────────────────────────────────────────────
@@ -273,6 +353,10 @@ class PhotoRepositoryImpl @Inject constructor(
 
     override fun searchPhotos(query: String): Flow<List<PhotoEntity>> {
         return photoDao.searchPhotos(query)
+    }
+
+    override fun searchPhotosAdvanced(query: String): Flow<List<PhotoEntity>> {
+        return photoDao.searchPhotosAdvanced(query)
     }
 
     // ── Share ───────────────────────────────────────────────────────────
@@ -397,6 +481,11 @@ class PhotoRepositoryImpl @Inject constructor(
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
+                if (photo.isFavorite) {
+                    photoDao.deleteFavoriteRecord(photo.path)
+                    photoDao.insertFavoriteRecord(com.photoapp.data.local.entities.FavoriteRecord(finalDestFile.absolutePath, finalDestFile.name, photo.size))
+                }
+                
                 photoDao.deletePhoto(photo)
                 
                 scanFileWithTimeout(finalDestFile.absolutePath, mimeType)
@@ -453,6 +542,10 @@ class PhotoRepositoryImpl @Inject constructor(
             if (!oldFile.exists()) return@withContext false
             val newFile = File(oldFile.parentFile, finalName)
             if (oldFile.renameTo(newFile)) {
+                if (photo.isFavorite) {
+                    photoDao.deleteFavoriteRecord(photo.path)
+                    photoDao.insertFavoriteRecord(com.photoapp.data.local.entities.FavoriteRecord(newFile.absolutePath, newFile.name, photo.size))
+                }
                 scanFileWithTimeout(newFile.absolutePath, photo.mimeType)
                 true
             } else {
@@ -567,6 +660,10 @@ class PhotoRepositoryImpl @Inject constructor(
         val resolver = context.contentResolver
         val hiddenDir = context.getExternalFilesDir("Hidden") ?: File(context.filesDir, "Hidden")
         if (!hiddenDir.exists()) hiddenDir.mkdirs()
+        val nomedia = File(hiddenDir, ".nomedia")
+        if (!nomedia.exists()) {
+            try { nomedia.createNewFile() } catch (_: Exception) {}
+        }
 
         for (id in ids) {
             val photo = photoDao.getPhotoById(id) ?: continue
@@ -593,10 +690,31 @@ class PhotoRepositoryImpl @Inject constructor(
                     }
                 }
 
-                resolver.delete(photo.contentUri, null, null)
+                try {
+                    resolver.delete(photo.contentUri, null, null)
+                } catch (_: Exception) {}
+
                 if (sourceFile.exists()) {
                     sourceFile.delete()
                 }
+
+                val hiddenRecord = com.photoapp.data.local.entities.HiddenRecord(
+                    path = finalDestFile.absolutePath,
+                    originalPath = photo.path,
+                    name = photo.name,
+                    mimeType = photo.mimeType,
+                    size = photo.size,
+                    width = photo.width,
+                    height = photo.height,
+                    dateAdded = photo.dateAdded,
+                    dateTaken = photo.dateTaken,
+                    dateModified = photo.dateModified,
+                    bucketId = photo.bucketId,
+                    bucketName = photo.bucketName,
+                    latitude = photo.latitude,
+                    longitude = photo.longitude
+                )
+                photoDao.insertHiddenRecord(hiddenRecord)
 
                 val updatedPhoto = photo.copy(
                     uri = Uri.fromFile(finalDestFile).toString(),
@@ -615,7 +733,6 @@ class PhotoRepositoryImpl @Inject constructor(
         for (id in ids) {
             val photo = photoDao.getPhotoById(id) ?: continue
             val sourceFile = File(photo.path)
-            if (!sourceFile.exists()) continue
 
             val albumName = photo.bucketName ?: "Restored"
             val destDir = getAlbumDirectory(albumName, photo.mimeType)
@@ -635,16 +752,16 @@ class PhotoRepositoryImpl @Inject constructor(
             }
 
             try {
-                sourceFile.inputStream().use { input ->
-                    finalDestFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-
                 if (sourceFile.exists()) {
+                    sourceFile.inputStream().use { input ->
+                        finalDestFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
                     sourceFile.delete()
                 }
 
+                photoDao.deleteHiddenRecord(photo.path)
                 photoDao.deletePhoto(photo)
                 scanFileWithTimeout(finalDestFile.absolutePath, photo.mimeType)
 

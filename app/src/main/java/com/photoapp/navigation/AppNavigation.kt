@@ -1,14 +1,28 @@
 package com.photoapp.navigation
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -23,8 +37,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -36,9 +54,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -53,7 +78,7 @@ import com.photoapp.ui.editor.EditorScreen
 import com.photoapp.ui.favorites.FavoritesScreen
 import com.photoapp.ui.gallery.GalleryScreen
 import com.photoapp.ui.hidden.HiddenScreen
-import com.photoapp.ui.map.PhotosMapScreen
+import com.photoapp.ui.search.SearchScreen
 import com.photoapp.ui.settings.SettingsScreen
 import com.photoapp.ui.trash.TrashScreen
 import com.photoapp.ui.viewer.PhotoViewerScreen
@@ -67,15 +92,16 @@ sealed class Screen(val route: String) {
     data object Trash : Screen("trash")
     data object Hidden : Screen("hidden")
     data object Settings : Screen("settings")
-    data object Map : Screen("map")
-    data object Viewer : Screen("viewer/{photoId}?albumId={albumId}&favoritesOnly={favoritesOnly}&videosOnly={videosOnly}&hiddenOnly={hiddenOnly}") {
-        fun createRoute(photoId: Long, albumId: String? = null, favoritesOnly: Boolean = false, videosOnly: Boolean = false, hiddenOnly: Boolean = false): String {
+    data object Search : Screen("search")
+    data object Viewer : Screen("viewer/{photoId}?albumId={albumId}&favoritesOnly={favoritesOnly}&videosOnly={videosOnly}&hiddenOnly={hiddenOnly}&externalUri={externalUri}") {
+        fun createRoute(photoId: Long, albumId: String? = null, favoritesOnly: Boolean = false, videosOnly: Boolean = false, hiddenOnly: Boolean = false, externalUri: String? = null): String {
             val builder = StringBuilder("viewer/$photoId")
             val params = mutableListOf<String>()
-            if (albumId != null) params.add("albumId=$albumId")
+            if (albumId != null) params.add("albumId=${android.net.Uri.encode(albumId)}")
             if (favoritesOnly) params.add("favoritesOnly=true")
             if (videosOnly) params.add("videosOnly=true")
             if (hiddenOnly) params.add("hiddenOnly=true")
+            if (externalUri != null) params.add("externalUri=${android.net.Uri.encode(externalUri)}")
             if (params.isNotEmpty()) {
                 builder.append("?").append(params.joinToString("&"))
             }
@@ -103,6 +129,27 @@ val bottomNavItems = listOf(
 
 // ─── Floating Pill Nav Bar ──────────────────────────────────────────────────
 
+class ViewerPillState {
+    var isViewerActive by androidx.compose.runtime.mutableStateOf(false)
+    var showControls by androidx.compose.runtime.mutableStateOf(true)
+    var isFavorite by androidx.compose.runtime.mutableStateOf(false)
+    var isVideo by androidx.compose.runtime.mutableStateOf(false)
+    var isHidden by androidx.compose.runtime.mutableStateOf(false)
+    var onShare: () -> Unit = {}
+    var onFavorite: () -> Unit = {}
+    var onEdit: () -> Unit = {}
+    var onDelete: () -> Unit = {}
+    var onMoveToAlbum: () -> Unit = {}
+    var onCopyToAlbum: () -> Unit = {}
+    var onRename: () -> Unit = {}
+    var onConvertToPdf: () -> Unit = {}
+    var onSetAsWallpaper: () -> Unit = {}
+    var onToggleHide: () -> Unit = {}
+    var onDetails: () -> Unit = {}
+}
+
+val LocalViewerPillState = androidx.compose.runtime.staticCompositionLocalOf { ViewerPillState() }
+
 @Composable
 private fun FloatingPillNavBar(
     items: List<BottomNavItem>,
@@ -110,72 +157,243 @@ private fun FloatingPillNavBar(
     onItemClick: (BottomNavItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 70% opaque — dark but translucent so photos bleed through underneath
-    val pillColor = Color(0xB51C1C1E)
+    val viewerPillState = LocalViewerPillState.current
+    val isViewerMode = viewerPillState.isViewerActive
+    val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface
+    val isLight = (surfaceColor.red * 0.299f + surfaceColor.green * 0.587f + surfaceColor.blue * 0.114f) > 0.5f
+    val view = LocalView.current
+    val haptic = LocalHapticFeedback.current
+
+    val pillColor = if (isLight) {
+        androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f)
+    } else {
+        Color(0xCC1C1C1E)
+    }
+
+    val pillBorderColor = if (isLight) {
+        androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    } else {
+        Color.White.copy(alpha = 0.18f)
+    }
+
+    val density = LocalDensity.current
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 36.dp, vertical = 14.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        androidx.compose.material3.Surface(
+            shape = CircleShape,
+            color = pillColor,
+            border = androidx.compose.foundation.BorderStroke(1.dp, pillBorderColor),
+            shadowElevation = 0.dp,
             modifier = Modifier
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(50),
-                    ambientColor = Color.Black.copy(alpha = 0.7f),
-                    spotColor = Color.Black.copy(alpha = 0.7f)
-                )
-                .background(pillColor, shape = RoundedCornerShape(50))
-                .padding(horizontal = 8.dp, vertical = 8.dp)
-        ) {
-            items.forEach { item ->
-                val isSelected = currentRoute == item.screen.route
-
-                // Animate the indicator circle size — active tab gets slightly larger
-                val circleSize by animateDpAsState(
-                    targetValue = if (isSelected) 54.dp else 46.dp,
+                .graphicsLayer {
+                    shadowElevation = with(density) { 8.dp.toPx() }
+                    shape = CircleShape
+                    clip = true
+                }
+                .clip(CircleShape)
+                .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioLowBouncy,
                         stiffness = Spring.StiffnessMediumLow
                     ),
-                    label = "circleSize_${item.label}"
+                    alignment = Alignment.Center
                 )
+        ) {
+            androidx.compose.animation.AnimatedContent(
+                targetState = isViewerMode,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + scaleIn(initialScale = 0.92f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center))
+                        .togetherWith(fadeOut(tween(180)) + scaleOut(targetScale = 0.92f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center))
+                },
+                contentAlignment = Alignment.Center,
+                label = "nav_pill_morph"
+            ) { inViewer ->
+                if (!inViewer) {
+                    // Home Nav Items (Photos, Videos, Albums, Favorites)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        items.forEach { item ->
+                            val isSelected = currentRoute == item.screen.route
 
-                // Active tab background: a noticeably darker circle inside the pill
-                val circleBg by animateColorAsState(
-                    targetValue = if (isSelected) Color(0xFF3A3A3C) else Color.Transparent,
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                    label = "circleBg_${item.label}"
-                )
+                            val circleSize by animateDpAsState(
+                                targetValue = if (isSelected) 54.dp else 46.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "circleSize_${item.label}"
+                            )
 
-                // Icon tint: bright white for active, muted grey for inactive
-                val iconTint by animateColorAsState(
-                    targetValue = if (isSelected) Color.White else Color(0xFF8E8E93),
-                    animationSpec = tween(durationMillis = 180),
-                    label = "iconTint_${item.label}"
-                )
+                            val selectedBg = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                            val unselectedBg = Color.Transparent
 
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(circleSize)
-                        .background(circleBg, shape = CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onItemClick(item) }
-                ) {
-                    Icon(
-                        imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                        contentDescription = item.label,
-                        tint = iconTint,
-                        modifier = Modifier.size(22.dp)
-                    )
+                            val circleBg by animateColorAsState(
+                                targetValue = if (isSelected) selectedBg else unselectedBg,
+                                animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                                label = "circleBg_${item.label}"
+                            )
+
+                            val selectedTint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                            val unselectedTint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+
+                            val iconTint by animateColorAsState(
+                                targetValue = if (isSelected) selectedTint else unselectedTint,
+                                animationSpec = tween(durationMillis = 180),
+                                label = "iconTint_${item.label}"
+                            )
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(circleSize)
+                                    .background(circleBg, shape = CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        try {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        } catch (e: Exception) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        onItemClick(item)
+                                    }
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                    contentDescription = item.label,
+                                    tint = iconTint,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Viewer Action Items (Share, Favorite, Edit, Delete, More)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        // Share
+                        androidx.compose.material3.IconButton(onClick = { viewerPillState.onShare() }) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Favorite
+                        androidx.compose.material3.IconButton(onClick = { viewerPillState.onFavorite() }) {
+                            Icon(
+                                imageVector = if (viewerPillState.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = if (viewerPillState.isFavorite) Color(0xFFFF5252) else Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Edit
+                        androidx.compose.material3.IconButton(onClick = { viewerPillState.onEdit() }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Delete
+                        androidx.compose.material3.IconButton(onClick = { viewerPillState.onDelete() }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Overflow Menu
+                        var showOverflowMenu by remember { androidx.compose.runtime.mutableStateOf(false) }
+                        Box {
+                            androidx.compose.material3.IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text("Move to album") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onMoveToAlbum()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text("Copy to album") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onCopyToAlbum()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text("Rename") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onRename()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text("Convert to PDF") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onConvertToPdf()
+                                    }
+                                )
+                                if (!viewerPillState.isVideo) {
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { androidx.compose.material3.Text("Set as wallpaper") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            viewerPillState.onSetAsWallpaper()
+                                        }
+                                    )
+                                }
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text(if (viewerPillState.isHidden) "Unhide" else "Hide") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onToggleHide()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { androidx.compose.material3.Text("Details") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewerPillState.onDetails()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -188,21 +406,34 @@ private fun FloatingPillNavBar(
 private val NAV_PILL_BOTTOM_PADDING = 100.dp
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    externalUri: String? = null
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
     val showBottomBar = currentRoute in bottomNavItems.map { it.screen.route }
+    val viewerPillState = remember { ViewerPillState() }
 
-    // Box overlay: pill sits on top of content with zero reserved space below
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Handle deep link from external apps (Open With)
+    LaunchedEffect(externalUri) {
+        if (!externalUri.isNullOrEmpty()) {
+            navController.navigate("viewer/0?externalUri=${android.net.Uri.encode(externalUri)}")
+        }
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(LocalViewerPillState provides viewerPillState) {
+        // Box overlay: pill sits on top of content with zero reserved space below
+        Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = Screen.Gallery.route,
             modifier = Modifier.fillMaxSize(),
-            enterTransition = { fadeIn(tween(300)) },
-            exitTransition = { fadeOut(tween(300)) }
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
         ) {
             // ── Top-level destinations ──
 
@@ -211,11 +442,11 @@ fun AppNavigation() {
                     onPhotoClick = { photoId ->
                         navController.navigate(Screen.Viewer.createRoute(photoId))
                     },
+                    onSearchClick = {
+                        navController.navigate(Screen.Search.route)
+                    },
                     onSettingsClick = {
                         navController.navigate(Screen.Settings.route)
-                    },
-                    onMapClick = {
-                        navController.navigate(Screen.Map.route)
                     },
                     bottomPadding = 0.dp
                 )
@@ -312,10 +543,25 @@ fun AppNavigation() {
                     navArgument("hiddenOnly") {
                         type = NavType.BoolType
                         defaultValue = false
+                    },
+                    navArgument("externalUri") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
                     }
                 ),
-                enterTransition = { fadeIn(tween(300)) },
-                exitTransition = { fadeOut(tween(300)) }
+                enterTransition = {
+                    fadeIn(tween(250)) + scaleIn(initialScale = 0.93f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+                },
+                exitTransition = {
+                    fadeOut(tween(200)) + scaleOut(targetScale = 0.95f, animationSpec = tween(200))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(250))
+                },
+                popExitTransition = {
+                    fadeOut(tween(200)) + scaleOut(targetScale = 0.95f, animationSpec = tween(200))
+                }
             ) {
                 PhotoViewerScreen(
                     onBack = { navController.navigateUp() },
@@ -359,11 +605,11 @@ fun AppNavigation() {
             }
 
             composable(
-                route = Screen.Map.route,
+                route = Screen.Search.route,
                 enterTransition = { fadeIn(tween(300)) },
                 exitTransition = { fadeOut(tween(300)) }
             ) {
-                PhotosMapScreen(
+                SearchScreen(
                     onBack = { navController.navigateUp() },
                     onPhotoClick = { photoId ->
                         navController.navigate(Screen.Viewer.createRoute(photoId))
@@ -372,22 +618,38 @@ fun AppNavigation() {
             }
         }
 
-        // Pill overlaid directly on top — truly floating, zero reserved space below
-        if (showBottomBar) {
+        // Pill overlaid directly on top with smooth spring slide & fade transition
+        AnimatedVisibility(
+            visible = if (viewerPillState.isViewerActive) viewerPillState.showControls else showBottomBar,
+            enter = slideInVertically(
+                initialOffsetY = { it * 2 },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(animationSpec = tween(250)),
+            exit = slideOutVertically(
+                targetOffsetY = { it * 2 },
+                animationSpec = tween(220)
+            ) + fadeOut(animationSpec = tween(180)),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             FloatingPillNavBar(
                 items = bottomNavItems,
                 currentRoute = currentRoute,
                 onItemClick = { item ->
-                    navController.navigate(item.screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    if (currentRoute != item.screen.route) {
+                        navController.navigate(item.screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                }
             )
+        }
         }
     }
 }

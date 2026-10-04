@@ -47,7 +47,7 @@ data class EditorUiState(
 )
 
 enum class EditorTab {
-    ADJUST, FILTERS, CROP, AI
+    ADJUST, FILTERS, CROP, AI, VIDEO_TRIM, VIDEO_ROTATE, VIDEO_COMPRESS, VIDEO_FRAME
 }
 
 enum class AiEditMode {

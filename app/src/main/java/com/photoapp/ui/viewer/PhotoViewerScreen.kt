@@ -30,20 +30,19 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -183,13 +182,22 @@ fun PhotoViewerScreen(
     }
 
     // Determine initial page index once the media list is loaded
-    val initialIndex = remember(allPhotos) {
+    val initialIndex = remember(allPhotos, uiState.initialPhotoId) {
         val index = allPhotos.indexOfFirst { it.id == uiState.initialPhotoId }
         if (index >= 0) index else 0
     }
 
     val pagerState = rememberPagerState(initialPage = initialIndex) {
         allPhotos.size
+    }
+
+    LaunchedEffect(allPhotos, uiState.initialPhotoId) {
+        if (allPhotos.isNotEmpty()) {
+            val targetIdx = allPhotos.indexOfFirst { it.id == uiState.initialPhotoId }
+            if (targetIdx >= 0 && targetIdx < allPhotos.size && pagerState.currentPage != targetIdx) {
+                pagerState.scrollToPage(targetIdx)
+            }
+        }
     }
 
     val currentPhoto = allPhotos.getOrNull(pagerState.currentPage)
@@ -210,6 +218,49 @@ fun PhotoViewerScreen(
 
     val thumbnailListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    val viewerPillState = com.photoapp.navigation.LocalViewerPillState.current
+    DisposableEffect(currentPhoto, uiState.showControls) {
+        viewerPillState.isViewerActive = true
+        viewerPillState.showControls = uiState.showControls
+        viewerPillState.isFavorite = currentPhoto.isFavorite
+        viewerPillState.isVideo = isVideo
+        viewerPillState.isHidden = currentPhoto.isHidden
+
+        viewerPillState.onShare = { viewModel.sharePhoto(currentPhoto) }
+        viewerPillState.onFavorite = { viewModel.toggleFavorite(currentPhoto.id) }
+        viewerPillState.onEdit = { onEdit(currentPhoto.id) }
+        viewerPillState.onDelete = { showDeleteDialog = true }
+        viewerPillState.onMoveToAlbum = { showMoveDialog = true }
+        viewerPillState.onCopyToAlbum = { showCopyDialog = true }
+        viewerPillState.onRename = { showRenameDialog = true }
+        viewerPillState.onConvertToPdf = { showPdfDialog = true }
+        viewerPillState.onSetAsWallpaper = {
+            viewModel.setAsWallpaper(currentPhoto.id) { success ->
+                val msg = if (success) "Wallpaper set successfully" else "Failed to set wallpaper"
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        viewerPillState.onToggleHide = {
+            if (currentPhoto.isHidden) {
+                viewModel.unhidePhoto(currentPhoto.id)
+                android.widget.Toast.makeText(context, "Photo unhidden", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                viewModel.hidePhoto(currentPhoto.id)
+                android.widget.Toast.makeText(context, "Photo hidden", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        viewerPillState.onDetails = { viewModel.toggleInfo() }
+
+        onDispose {
+            viewerPillState.isViewerActive = false
+            (context as? android.app.Activity)?.let { act ->
+                val lp = act.window.attributes
+                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                act.window.attributes = lp
+            }
+        }
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         if (allPhotos.isNotEmpty() && pagerState.currentPage < allPhotos.size) {
@@ -243,13 +294,14 @@ fun PhotoViewerScreen(
     val bgAlpha = 1f - dragFraction
     val scaleFraction = 1f - (dragFraction * 0.12f)
     val currentScale = pageScales[pagerState.currentPage] ?: 1f
+    val isCurrentVideo = currentPhoto.mimeType.startsWith("video/")
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = bgAlpha))
-            .pointerInput(currentScale) {
-                if (currentScale == 1f) {
+            .pointerInput(currentScale, isCurrentVideo) {
+                if (currentScale == 1f && !isCurrentVideo) {
                     awaitPointerEventScope {
                         while (true) {
                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -260,6 +312,10 @@ fun PhotoViewerScreen(
                             do {
                                 val event = awaitPointerEvent()
                                 val changes = event.changes
+                                if (changes.size > 1) {
+                                    // Multi-touch gesture (pinch zoom) — do not interpret as single-finger swipe
+                                    break
+                                }
                                 val change = changes.firstOrNull { it.id == down.id }
                                 
                                 if (change != null && change.pressed) {
@@ -268,14 +324,16 @@ fun PhotoViewerScreen(
                                     
                                     if (isVerticalDrag == null) {
                                         val totalDrag = currentPos - down.position
-                                        if (totalDrag.getDistance() > 15f) {
-                                            if (Math.abs(totalDrag.y) > Math.abs(totalDrag.x)) {
-                                                if (totalDrag.y > 0f) {
-                                                    isVerticalDrag = true
-                                                } else {
-                                                    isVerticalDrag = false
-                                                    viewModel.toggleInfo()
-                                                }
+                                        val dx = Math.abs(totalDrag.x)
+                                        val dy = Math.abs(totalDrag.y)
+                                        
+                                        // Require strict vertical alignment (dy > dx * 2.5) to avoid triggering on diagonal swipes
+                                        if (dy > dx * 2.5f && totalDrag.getDistance() > 30f) {
+                                            if (totalDrag.y > 0f) {
+                                                isVerticalDrag = true
+                                            } else if (totalDrag.y < -50f) {
+                                                isVerticalDrag = false
+                                                viewModel.toggleInfo()
                                             }
                                         }
                                     }
@@ -473,17 +531,15 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopCenter)
                 .graphicsLayer(alpha = bgAlpha)
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.Black.copy(alpha = 0.6f))
                     .statusBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 8.dp)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
+                IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
@@ -493,8 +549,8 @@ fun PhotoViewerScreen(
 
                 Column(
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 48.dp),
+                        .weight(1f)
+                        .padding(horizontal = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -506,7 +562,7 @@ fun PhotoViewerScreen(
                     )
                     mediaInfo?.let { info ->
                         val tags = mutableListOf<Pair<String, Pair<Color, Color>>>()
-                        
+
                         info.hdrTag?.let { hdr ->
                             val displayHdr = when {
                                 hdr.contains("Dolby") -> "Dolby Vision"
@@ -518,7 +574,7 @@ fun PhotoViewerScreen(
                             val textColor = if (hdr.contains("Dolby")) Color.Black else Color.White
                             tags.add(displayHdr to (color to textColor))
                         }
-                        
+
                         info.resolutionTag?.let { res ->
                             val displayRes = when {
                                 res.contains("8K") -> "8K"
@@ -534,7 +590,7 @@ fun PhotoViewerScreen(
                             }
                             tags.add(displayRes to (color to Color.White))
                         }
-                        
+
                         info.extraTags.forEach { tag ->
                             val color = if (tag.contains("fps") || tag.contains("Slow")) Color(0xFF4CAF50) else Color(0xFF9C27B0)
                             tags.add(tag to (color to Color.White))
@@ -556,218 +612,93 @@ fun PhotoViewerScreen(
                     }
                 }
 
-                if (!isVideo) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(
-                        onClick = { launchGoogleLens(context, currentPhoto.contentUri) },
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        onClick = { viewModel.toggleInfo() }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CenterFocusStrong,
-                            contentDescription = "Google Lens",
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Details",
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+
+                    if (!isVideo) {
+                        IconButton(
+                            onClick = { launchGoogleLens(context, currentPhoto.contentUri) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CenterFocusStrong,
+                                contentDescription = "Google Lens",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Bottom action bar (includes Thumbnail strip and Action bar)
+        // Floating Thumbnail Strip (positioned cleanly above the morphing nav pill)
         AnimatedVisibility(
             visible = uiState.showControls,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
+            enter = slideInVertically(
+                initialOffsetY = { it * 2 },
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(androidx.compose.animation.core.tween(250)),
+            exit = slideOutVertically(
+                targetOffsetY = { it * 2 },
+                animationSpec = androidx.compose.animation.core.tween(220)
+            ) + fadeOut(androidx.compose.animation.core.tween(180)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 90.dp)
                 .graphicsLayer(alpha = bgAlpha)
         ) {
-            Column(
+            LazyRow(
+                state = thumbnailListState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .onGloballyPositioned { coordinates ->
-                        if (coordinates.size.height > 0) {
-                            bottomBarHeightPx = coordinates.size.height
-                        }
-                    }
+                    .height(60.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Thumbnail Strip
-                LazyRow(
-                    state = thumbnailListState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    itemsIndexed(allPhotos) { index, photo ->
-                        val isSelected = index == pagerState.currentPage
-                        val borderModifier = if (isSelected) {
-                            Modifier.border(2.dp, Color.White, RoundedCornerShape(4.dp))
-                        } else {
-                            Modifier
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .then(borderModifier)
-                                .clickable {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(index)
-                                    }
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(photo.contentUri)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Thumbnail $index",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-
-                // 2. Bottom Action bar Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Share
-                    IconButton(onClick = { viewModel.sharePhoto(currentPhoto) }) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
+                itemsIndexed(allPhotos) { index, photo ->
+                    val isSelected = index == pagerState.currentPage
+                    val borderModifier = if (isSelected) {
+                        Modifier.border(2.dp, Color.White, RoundedCornerShape(6.dp))
+                    } else {
+                        Modifier
                     }
 
-
-
-                    // Favorite
-                    IconButton(onClick = { viewModel.toggleFavorite(currentPhoto.id) }) {
-                        Icon(
-                            imageVector = if (currentPhoto.isFavorite) Icons.Filled.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (currentPhoto.isFavorite) FavoriteRed else Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    // Edit
-                    IconButton(onClick = {
-                        if (isVideo) {
-                            android.widget.Toast.makeText(context, "Video editing is not supported yet", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            onEdit(currentPhoto.id)
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = if (isVideo) Color.White.copy(alpha = 0.5f) else Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    // Delete
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    // More (3-dot menu)
-                    var showOverflowMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More options",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Move to album") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showMoveDialog = true
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .then(borderModifier)
+                            .clickable {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Copy to album") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showCopyDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Rename") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showRenameDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Convert to PDF") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showPdfDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Set as wallpaper") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    viewModel.setAsWallpaper(currentPhoto.id) { success ->
-                                        if (success) {
-                                            android.widget.Toast.makeText(context, "Wallpaper set successfully", android.widget.Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            android.widget.Toast.makeText(context, "Failed to set wallpaper", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-                            )
-                            if (currentPhoto.isHidden) {
-                                DropdownMenuItem(
-                                    text = { Text("Unhide") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.unhidePhoto(currentPhoto.id)
-                                        android.widget.Toast.makeText(context, "Photo unhidden", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            } else {
-                                DropdownMenuItem(
-                                    text = { Text("Hide") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.hidePhoto(currentPhoto.id)
-                                        android.widget.Toast.makeText(context, "Photo hidden", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                )
                             }
-                        }
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(photo.contentUri)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Thumbnail $index",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
@@ -777,8 +708,21 @@ fun PhotoViewerScreen(
         if (uiState.showInfo) {
             ModalBottomSheet(
                 onDismissRequest = { viewModel.toggleInfo() },
-                sheetState = rememberModalBottomSheetState(),
-                containerColor = MaterialTheme.colorScheme.surface
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                dragHandle = {
+                    Box(
+                        modifier = Modifier
+                            .padding(vertical = 12.dp)
+                            .width(36.dp)
+                            .height(4.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(2.dp)
+                            )
+                    )
+                }
             ) {
                 MediaInfoContent(photo = currentPhoto)
             }
@@ -948,107 +892,32 @@ private fun MediaInfoContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 1. Map Section if Location is Present
+        // 1. Location row if the photo is geotagged
         if (hasLocation) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black)
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = android.view.ViewGroup.LayoutParams(
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                            webViewClient = WebViewClient()
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            
-                            // Enable mixed content mode to allow maps asset loading
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                            }
-                            
-                            // Remove WebView identification tags from the User Agent
-                            // to bypass the iframe security restriction from Google Maps
-                            val defaultUserAgent = settings.userAgentString
-                            if (defaultUserAgent != null) {
-                                settings.userAgentString = defaultUserAgent
-                                    .replace("; wv", "")
-                                    .replace("Version/4.0 ", "")
-                            }
-                            
-                            setBackgroundColor(0)
-                        }
-                    },
-                    update = { webView ->
-                        val latLngPair = Pair(photo.latitude, photo.longitude)
-                        if (webView.tag != latLngPair) {
-                            webView.tag = latLngPair
-                            val htmlContent = """
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-                                    <style>
-                                        html, body {
-                                            width: 100%;
-                                            height: 100%;
-                                            margin: 0;
-                                            padding: 0;
-                                            background-color: #121212;
-                                            overflow: hidden;
-                                        }
-                                        iframe {
-                                            width: 100%;
-                                            height: 100%;
-                                            border: none;
-                                            filter: invert(90%) hue-rotate(180deg);
-                                        }
-                                    </style>
-                                </head>
-                                <body>
-                                    <iframe 
-                                        width="100%" 
-                                        height="100%" 
-                                        style="border:0;" 
-                                        src="https://maps.google.com/maps?q=${photo.latitude!!},${photo.longitude!!}&z=15&output=embed">
-                                    </iframe>
-                                </body>
-                                </html>
-                            """.trimIndent()
-                            webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Dark shade overlay and Address overlay on top of WebView
-                Box(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.8f)
-                                )
-                            )
-                        )
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(16.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = addressText,
-                        color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -1098,8 +967,10 @@ private fun MediaInfoContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val focalText = info?.focalLength ?: "--"
-                    val resolutionText = photo.resolution
-                    val sizeText = photo.formattedSize
+                    val resW = info?.actualWidth?.takeIf { it > 0 } ?: photo.width
+                    val resH = info?.actualHeight?.takeIf { it > 0 } ?: photo.height
+                    val resolutionText = "${resW} × ${resH}"
+                    val sizeText = info?.fileSizeFormatted ?: photo.formattedSize
 
                     Text(text = focalText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                     Text(text = resolutionText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1.5f), textAlign = TextAlign.Center)
@@ -1117,7 +988,10 @@ private fun MediaInfoContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val deviceText = info?.deviceModel ?: "UNKNOWN DEVICE"
-                    val mpText = info?.megapixels ?: "${Math.round((photo.width * photo.height) / 1_000_000.0)} MP"
+                    val resW = info?.actualWidth?.takeIf { it > 0 } ?: photo.width
+                    val resH = info?.actualHeight?.takeIf { it > 0 } ?: photo.height
+                    val mpCalc = (resW * resH) / 1_000_000.0
+                    val mpText = info?.megapixels ?: if (mpCalc >= 0.1) "${String.format(java.util.Locale.US, "%.1f", mpCalc)} MP" else "-- MP"
 
                     Text(
                         text = deviceText,
@@ -1151,6 +1025,11 @@ private fun MediaInfoContent(
         // 3. Metadata Files details (Paths, Filenames, types)
         InfoRow(label = "Filename", value = photo.name)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        info?.lensModel?.let { lens ->
+            InfoRow(label = "Lens", value = lens)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        }
 
         info?.let { mediaInfo ->
             val tags = mutableListOf<String>()
@@ -1198,10 +1077,16 @@ private fun MediaInfoContent(
             }
         }
 
-        InfoRow(label = "Date Added", value = DateUtils.formatDateTime(photo.dateAdded))
+        val dateTakenText = info?.dateTakenFormatted ?: DateUtils.formatDateTime(photo.dateTaken)
+        InfoRow(label = "Date Taken", value = dateTakenText)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        InfoRow(label = "Type", value = photo.mimeType)
+        val dateModText = info?.dateModifiedFormatted ?: DateUtils.formatDateTime(photo.dateModified)
+        InfoRow(label = "Modified", value = dateModText)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        val mimeText = info?.mimeType ?: photo.mimeType
+        InfoRow(label = "Type", value = mimeText)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         InfoRow(label = "Path", value = photo.path)

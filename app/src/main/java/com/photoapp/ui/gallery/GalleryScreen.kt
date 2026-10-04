@@ -18,8 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -48,13 +48,15 @@ import com.photoapp.ui.components.PdfNameDialog
 @Composable
 fun GalleryScreen(
     onPhotoClick: (Long) -> Unit,
+    onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit,
-    onMapClick: () -> Unit,
     bottomPadding: Dp = 0.dp,
     viewModel: GalleryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val settingsManager = remember { com.photoapp.data.settings.ThemeSettingsManager.getInstance(context) }
+    val photoGridColumns by settingsManager.photoGridColumns.collectAsState(initial = 3)
 
     var showMoveDialog by remember { mutableStateOf(false) }
     var showCopyDialog by remember { mutableStateOf(false) }
@@ -127,10 +129,10 @@ fun GalleryScreen(
                         )
                     },
                     actions = {
-                        IconButton(onClick = onMapClick) {
+                        IconButton(onClick = onSearchClick) {
                             Icon(
-                                imageVector = Icons.Default.Map,
-                                contentDescription = "Map"
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search"
                             )
                         }
                         IconButton(onClick = onSettingsClick) {
@@ -175,6 +177,7 @@ fun GalleryScreen(
                             onPhotoClick = rememberedOnPhotoClick,
                             onPhotoLongClick = rememberedOnPhotoLongClick,
                             groupByDate = true,
+                            columns = photoGridColumns,
                             onSelectionChanged = rememberedOnSelectionChanged,
                             modifier = Modifier.fillMaxSize()
                         )

@@ -1,11 +1,15 @@
 package com.photoapp.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,8 +25,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +43,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +64,8 @@ fun SettingsScreen(
     val settingsManager = remember { ThemeSettingsManager.getInstance(context) }
     val themeMode by settingsManager.themeMode.collectAsState(initial = ThemeSettingsManager.THEME_SYSTEM)
     val accentColor by settingsManager.accentColor.collectAsState(initial = ThemeSettingsManager.ACCENT_RED)
+    val photoGridColumns by settingsManager.photoGridColumns.collectAsState(initial = 3)
+    val videoGridColumns by settingsManager.videoGridColumns.collectAsState(initial = 3)
 
     val scrollState = rememberScrollState()
 
@@ -204,6 +215,51 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
+                text = "Grid Layout",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    ColumnSelectorRow(
+                        title = "Photos Grid Columns",
+                        subtitle = "Choose column count for Photos tab (2 to 8)",
+                        currentColumns = photoGridColumns,
+                        onColumnsChanged = { settingsManager.setPhotoGridColumns(it) }
+                    )
+
+                    androidx.compose.material3.HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+
+                    ColumnSelectorRow(
+                        title = "Videos Grid Columns",
+                        subtitle = "Choose column count for Videos tab (2 to 8)",
+                        currentColumns = videoGridColumns,
+                        onColumnsChanged = { settingsManager.setVideoGridColumns(it) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
                 text = "About",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -336,13 +392,8 @@ fun SettingsScreen(
                     )
 
                     FeatureItem(
-                        title = "🗺️ Interactive India Photos Map",
-                        desc = "Plots your geotagged photos dynamically across a fully interactive, zoomable, and pan-enabled map powered by Google Maps. Automatically clusters markers and opens bottom horizontal scrolling preview sheets of your photos."
-                    )
-
-                    FeatureItem(
-                        title = "📍 Geotag Viewer & Details Grid",
-                        desc = "Swipe up on any photo to view a dark-themed Google Maps street card of the exact coordinates, geocoded state/country details, and camera parameters (Aperture, Shutter Speed, ISO, and 35mm film equivalent MM)."
+                        title = "📍 Location & Details Grid",
+                        desc = "Swipe up on any photo to view where it was taken (city, state and country) along with camera parameters (Aperture, Shutter Speed, ISO, and 35mm film equivalent MM)."
                     )
                 }
             }
@@ -651,5 +702,84 @@ private fun AccentColorBubble(
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun ColumnSelectorRow(
+    title: String,
+    subtitle: String,
+    currentColumns: Int,
+    onColumnsChanged: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "$currentColumns Cols",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            (2..8).forEach { cols ->
+                val selected = cols == currentColumns
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable { onColumnsChanged(cols) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$cols",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }

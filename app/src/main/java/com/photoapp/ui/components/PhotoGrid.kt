@@ -248,7 +248,10 @@ fun PhotoGrid(
     onSelectionChanged: ((Set<Long>) -> Unit)? = null
 ) {
     val gridState = rememberLazyGridState()
-    var gridColumns by rememberSaveable { mutableIntStateOf(columns) }
+    var gridColumns by remember(columns) { mutableIntStateOf(columns) }
+    LaunchedEffect(columns) {
+        gridColumns = columns
+    }
     val scope = rememberCoroutineScope()
 
     val onLongClickAction = remember(onSelectionChanged, onPhotoLongClick) {
@@ -554,16 +557,21 @@ fun VerticalScrollbar(
 ) {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
-    // Keep track of scrollbar active drag state and visibility
     var isDragging by remember { mutableStateOf(false) }
     var isScrolling by remember { mutableStateOf(false) }
 
-    LaunchedEffect(state.isScrollInProgress, isDragging) {
-        if (state.isScrollInProgress || isDragging) {
+    // Listen to every scroll offset change via snapshotFlow
+    LaunchedEffect(state, isDragging) {
+        if (isDragging) {
             isScrolling = true
         } else {
-            delay(1500)
-            isScrolling = false
+            androidx.compose.runtime.snapshotFlow {
+                state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
+            }.collect {
+                isScrolling = true
+                delay(2000)
+                isScrolling = false
+            }
         }
     }
 
@@ -682,7 +690,7 @@ fun VerticalScrollbar(
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(2.dp)
                     )
             )
@@ -691,9 +699,9 @@ fun VerticalScrollbar(
             Box(
                 modifier = Modifier
                     .fillMaxHeight(thumbHeightPercent)
-                    .width(6.dp)
+                    .width(8.dp)
                     .align(Alignment.TopEnd)
-                    .padding(end = 15.dp)
+                    .padding(end = 14.dp)
                     .graphicsLayer {
                         val percent = scrollPercentState.value
                         val parentHeight = size.height / thumbHeightPercent.coerceAtLeast(0.01f)
@@ -703,7 +711,12 @@ fun VerticalScrollbar(
                     }
                     .background(
                         color = accentColor,
-                        shape = RoundedCornerShape(3.dp)
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp)
                     )
             )
 

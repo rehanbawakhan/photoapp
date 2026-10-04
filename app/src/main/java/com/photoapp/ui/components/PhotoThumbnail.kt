@@ -66,7 +66,7 @@ fun PhotoThumbnail(
         ImageRequest.Builder(context)
             .data(photo.contentUri)
             .bitmapConfig(Bitmap.Config.RGB_565)
-            .crossfade(false)
+            .crossfade(true)
             .size(300)
             .build()
     }

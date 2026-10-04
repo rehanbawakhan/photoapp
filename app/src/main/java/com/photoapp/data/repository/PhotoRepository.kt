@@ -34,6 +34,7 @@ interface PhotoRepository {
 
     // Search
     fun searchPhotos(query: String): Flow<List<PhotoEntity>>
+    fun searchPhotosAdvanced(query: String): Flow<List<PhotoEntity>>
 
     // Share
     suspend fun getShareUri(photoId: Long): Uri?

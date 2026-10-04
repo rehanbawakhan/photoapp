@@ -232,9 +232,10 @@ class MediaStoreManager @Inject constructor(
                         id = bucketId,
                         name = bucketName,
                         coverUri = contentUri.toString(),
-                        count = 0
+                        imageCount = 0,
+                        videoCount = 0
                     )
-                }.count++
+                }.imageCount++
             }
         }
 
@@ -268,13 +269,14 @@ class MediaStoreManager @Inject constructor(
 
                 val existing = albumMap[bucketId]
                 if (existing != null) {
-                    existing.count++
+                    existing.videoCount++
                 } else {
                     albumMap[bucketId] = AlbumData(
                         id = bucketId,
                         name = bucketName,
                         coverUri = contentUri.toString(),
-                        count = 1
+                        imageCount = 0,
+                        videoCount = 1
                     )
                 }
             }
@@ -285,10 +287,11 @@ class MediaStoreManager @Inject constructor(
                 id = data.id,
                 name = data.name,
                 coverPhotoUri = data.coverUri,
-                photoCount = data.count,
+                photoCount = data.imageCount,
+                videoCount = data.videoCount,
                 isCustom = false
             )
-        }.sortedByDescending { it.photoCount }
+        }.sortedByDescending { it.photoCount + it.videoCount }
     }
 
     suspend fun deletePhotoFromMediaStore(photoUri: Uri): Boolean = withContext(Dispatchers.IO) {
@@ -332,6 +335,7 @@ class MediaStoreManager @Inject constructor(
         val id: String,
         val name: String,
         val coverUri: String,
-        var count: Int
+        var imageCount: Int = 0,
+        var videoCount: Int = 0
     )
 }

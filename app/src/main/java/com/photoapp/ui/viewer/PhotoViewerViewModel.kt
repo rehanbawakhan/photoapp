@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -37,10 +38,12 @@ class PhotoViewerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val initialPhotoId: Long = savedStateHandle.get<Long>("photoId") ?: -1L
-    private val albumId: String? = savedStateHandle.get<String>("albumId")
+    private val rawAlbumId: String? = savedStateHandle.get<String>("albumId")
+    private val albumId: String? = rawAlbumId?.let { android.net.Uri.decode(it) }
     private val favoritesOnly: Boolean = savedStateHandle.get<Boolean>("favoritesOnly") ?: false
     private val videosOnly: Boolean = savedStateHandle.get<Boolean>("videosOnly") ?: false
     private val hiddenOnly: Boolean = savedStateHandle.get<Boolean>("hiddenOnly") ?: false
+    private val externalUri: String? = savedStateHandle.get<String>("externalUri")
 
     private val _showInfo = MutableStateFlow(false)
     private val _showControls = MutableStateFlow(true)
@@ -48,6 +51,26 @@ class PhotoViewerViewModel @Inject constructor(
 
     // Load appropriate photos flow depending on the entry screen context
     private val photosFlow = when {
+        !externalUri.isNullOrEmpty() -> {
+            val decodedUri = android.net.Uri.decode(externalUri)
+            val isVideo = decodedUri.contains("video") || decodedUri.endsWith(".mp4") || decodedUri.endsWith(".mkv")
+            val mimeType = if (isVideo) "video/mp4" else "image/jpeg"
+            val externalPhoto = PhotoEntity(
+                id = -999L,
+                uri = decodedUri,
+                path = decodedUri,
+                name = "External Media",
+                bucketName = "External",
+                mimeType = mimeType,
+                size = 0L,
+                dateTaken = System.currentTimeMillis(),
+                dateModified = System.currentTimeMillis(),
+                dateAdded = System.currentTimeMillis(),
+                width = 0,
+                height = 0
+            )
+            kotlinx.coroutines.flow.flowOf(listOf(externalPhoto))
+        }
         favoritesOnly -> repository.getFavoritePhotos()
         albumId != null -> repository.getPhotosByBucket(albumId)
         videosOnly -> repository.getAllPhotos().map { list -> list.filter { it.mimeType.startsWith("video/") } }

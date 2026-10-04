@@ -61,6 +61,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         hasPermissionState.value = checkPermissions()
         setHighRefreshRate()
 
+        val initialExternalUri = getExternalMediaUri(intent)
+
         setContent {
             PhotoAppTheme {
                 Surface(
@@ -70,7 +72,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                     val hasPermission = hasPermissionState.value
 
                     if (hasPermission) {
-                        AppNavigation()
+                        AppNavigation(externalUri = initialExternalUri)
                     } else {
                         PermissionScreen(
                             onRequestPermission = {
@@ -81,6 +83,23 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun getExternalMediaUri(intent: Intent?): String? {
+        if (intent == null) return null
+        val action = intent.action
+        if (Intent.ACTION_VIEW == action) {
+            return intent.data?.toString()
+        } else if (Intent.ACTION_SEND == action) {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            }
+            return uri?.toString()
+        }
+        return null
     }
 
     override fun onResume() {

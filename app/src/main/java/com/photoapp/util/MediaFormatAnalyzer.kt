@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.exifinterface.media.ExifInterface
+import java.io.File
 
 object MediaFormatAnalyzer {
 
@@ -20,8 +21,17 @@ object MediaFormatAnalyzer {
         val exposureBias: String? = null,
         val iso: String? = null,
         val focalLength: String? = null,
+        val cameraMake: String? = null,
+        val cameraModel: String? = null,
+        val lensModel: String? = null,
         val deviceModel: String? = null,
-        val megapixels: String? = null
+        val megapixels: String? = null,
+        val actualWidth: Int = 0,
+        val actualHeight: Int = 0,
+        val fileSizeFormatted: String? = null,
+        val dateTakenFormatted: String? = null,
+        val dateModifiedFormatted: String? = null,
+        val mimeType: String? = null
     )
 
     fun analyze(
@@ -39,12 +49,40 @@ object MediaFormatAnalyzer {
         var exposureBias: String? = "0.0 EV"
         var iso: String? = null
         var focalLength: String? = null
+        var cameraMake: String? = null
+        var cameraModel: String? = null
+        var lensModel: String? = null
         var deviceModel: String? = null
-        val mp = (width * height) / 1_000_000.0
-        val megapixels = if (mp >= 0.1) "${Math.round(mp)} MP" else null
+        var actualWidth = width
+        var actualHeight = height
+        var fileSizeFormatted: String? = null
+        var dateTakenFormatted: String? = null
+        var dateModifiedFormatted: String? = null
+        var mimeType: String? = context.contentResolver.getType(Uri.parse(uriString))
+
+        // Get file size & modified date if file exists
+        if (path.isNotEmpty()) {
+            val file = File(path)
+            if (file.exists()) {
+                val sizeBytes = file.length()
+                val kb = sizeBytes / 1024.0
+                val mb = kb / 1024.0
+                fileSizeFormatted = when {
+                    mb >= 1.0 -> String.format(java.util.Locale.US, "%.1f MB", mb)
+                    kb >= 1.0 -> String.format(java.util.Locale.US, "%.0f KB", kb)
+                    else -> "$sizeBytes B"
+                }
+                if (file.lastModified() > 0) {
+                    dateModifiedFormatted = DateUtils.formatDateTime(file.lastModified())
+                }
+            }
+        }
+
+        val mp = (actualWidth * actualHeight) / 1_000_000.0
+        val megapixels = if (mp >= 0.1) "${String.format(java.util.Locale.US, "%.1f", mp)} MP" else null
 
         // 1. Resolution classification
-        val maxDim = maxOf(width, height)
+        val maxDim = maxOf(actualWidth, actualHeight)
         val resolutionTag = when {
             maxDim >= 7680 -> "8K Ultra"
             maxDim >= 3840 -> "4K Ultra HD"
@@ -54,17 +92,15 @@ object MediaFormatAnalyzer {
         }
 
         if (!isVideo) {
-            // 2. Image characteristics
-            val mp = (width * height) / 1_000_000.0
+            // 2. Image characteristics & EXIF parsing
             if (mp >= 1.0) {
-                val mpFormatted = String.format("%.1f MP", mp)
+                val mpFormatted = String.format(java.util.Locale.US, "%.1f MP", mp)
                 extraTags.add(mpFormatted)
                 if (mp >= 12.0) {
                     extraTags.add("High-Res")
                 }
             }
 
-            // Check if HDR/Wide Color Gamut (Display P3, BT.2020) via EXIF
             try {
                 val uri = Uri.parse(uriString)
                 val photoUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -78,18 +114,23 @@ object MediaFormatAnalyzer {
                 }
                 context.contentResolver.openInputStream(photoUri)?.use { inputStream ->
                     val exif = ExifInterface(inputStream)
+                    
+                    // Width / Height from EXIF
+                    val exifW = exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0)
+                    val exifH = exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0)
+                    if (exifW > 0 && exifH > 0) {
+                        actualWidth = exifW
+                        actualHeight = exifH
+                    }
+
                     val colorSpace = exif.getAttributeInt(
                         ExifInterface.TAG_COLOR_SPACE,
                         ExifInterface.COLOR_SPACE_UNCALIBRATED
                     )
                     
-                    // Standard color space tag: 1 = sRGB, 2 = Adobe RGB, 65535 = Uncalibrated
-                    // Some HDR/Wide color images report uncalibrated or specific profile tags
                     if (colorSpace == ExifInterface.COLOR_SPACE_UNCALIBRATED) {
-                        // Wide color / custom ICC Profile used (typical of HDR/P3 images)
-                        // Verify extension or format
-                        val mimeType = context.contentResolver.getType(uri) ?: ""
-                        if (mimeType.contains("heic") || mimeType.contains("heif") || mimeType.contains("avif")) {
+                        val type = mimeType ?: ""
+                        if (type.contains("heic") || type.contains("heif") || type.contains("avif")) {
                             hdrTag = "HDR (HEIF)"
                         }
                     }
@@ -97,13 +138,13 @@ object MediaFormatAnalyzer {
                     // Extract Camera / Exposure details
                     val fNumber = exif.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0)
                     if (fNumber > 0.0) {
-                        aperture = "f/${fNumber}"
+                        aperture = "f/${String.format(java.util.Locale.US, "%.1f", fNumber)}"
                     }
                     
                     val exposureTime = exif.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0)
                     if (exposureTime > 0.0) {
                         shutterSpeed = if (exposureTime >= 1.0) {
-                            "${String.format("%.1f", exposureTime)} S"
+                            "${String.format(java.util.Locale.US, "%.1f", exposureTime)} S"
                         } else {
                             val reciprocal = Math.round(1.0 / exposureTime)
                             "1/$reciprocal S"
@@ -111,40 +152,63 @@ object MediaFormatAnalyzer {
                     }
                     
                     val bias = exif.getAttributeDouble(ExifInterface.TAG_EXPOSURE_BIAS_VALUE, 0.0)
-                    exposureBias = "${if (bias >= 0.0) "+" else ""}${String.format("%.1f", bias)} EV"
+                    exposureBias = "${if (bias >= 0.0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", bias)} EV"
                     
-                    val isoVal = exif.getAttributeInt(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                    var isoVal = exif.getAttributeInt(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                    if (isoVal == 0) {
+                        isoVal = exif.getAttributeInt(ExifInterface.TAG_ISO_SPEED_RATINGS, 0)
+                    }
                     if (isoVal > 0) {
                         iso = "ISO $isoVal"
                     }
                     
                     val focal35 = exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM, 0.0)
+                    val focal = exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH, 0.0)
                     if (focal35 > 0.0) {
                         focalLength = "${focal35.toInt()} MM"
-                    } else {
-                        val focal = exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH, 0.0)
-                        if (focal > 0.0) {
-                            focalLength = if (focal % 1.0 == 0.0) "${focal.toInt()} MM" else "${String.format(java.util.Locale.US, "%.1f", focal)} MM"
+                    } else if (focal > 0.0) {
+                        focalLength = if (focal % 1.0 == 0.0) "${focal.toInt()} MM" else "${String.format(java.util.Locale.US, "%.1f", focal)} MM"
+                    }
+
+                    cameraMake = exif.getAttribute(ExifInterface.TAG_MAKE)?.trim()
+                    cameraModel = exif.getAttribute(ExifInterface.TAG_MODEL)?.trim()
+                    
+                    val rawLens = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)?.trim()
+                        ?: exif.getAttribute(ExifInterface.TAG_LENS_MAKE)?.trim()
+                    if (!rawLens.isNullOrEmpty()) {
+                        lensModel = rawLens
+                    }
+
+                    deviceModel = when {
+                        !cameraMake.isNullOrEmpty() && !cameraModel.isNullOrEmpty() -> {
+                            if (cameraModel!!.contains(cameraMake!!, ignoreCase = true)) cameraModel else "$cameraMake $cameraModel"
+                        }
+                        !cameraModel.isNullOrEmpty() -> cameraModel
+                        !cameraMake.isNullOrEmpty() -> cameraMake
+                        else -> null
+                    }
+
+                    // Date taken from EXIF
+                    val dateTimeOriginal = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+                        ?: exif.getAttribute(ExifInterface.TAG_DATETIME_DIGITIZED)
+                        ?: exif.getAttribute(ExifInterface.TAG_DATETIME)
+                    if (!dateTimeOriginal.isNullOrEmpty()) {
+                        try {
+                            val sdf = java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.getDefault())
+                            val parsedDate = sdf.parse(dateTimeOriginal)
+                            if (parsedDate != null) {
+                                dateTakenFormatted = DateUtils.formatDateTime(parsedDate.time)
+                            }
+                        } catch (e: Exception) {
+                            // ignore parse error
                         }
                     }
-                    
-                    val make = exif.getAttribute(ExifInterface.TAG_MAKE)?.trim()
-                    val model = exif.getAttribute(ExifInterface.TAG_MODEL)?.trim()
-                    deviceModel = when {
-                        !make.isNullOrEmpty() && !model.isNullOrEmpty() -> {
-                            if (model.contains(make, ignoreCase = true)) model else "$make $model"
-                        }
-                        !model.isNullOrEmpty() -> model
-                        !make.isNullOrEmpty() -> make
-                        else -> null
-                    }?.uppercase()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         } else {
-            // 3. Video characteristics (HDR, Dolby Vision, Frame Rate)
-
+            // 3. Video characteristics
             try {
                 val uri = Uri.parse(uriString)
                 val extractor = MediaExtractor()
@@ -156,15 +220,13 @@ object MediaFormatAnalyzer {
                     val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
                     
                     if (mime.startsWith("video/")) {
-                        // Check track type for Dolby Vision
+                        mimeType = mime
                         if (mime.contains("dolby-vision")) {
                             hdrTag = "Dolby Vision"
                         }
 
-                        // Check color transfer (PQ / HLG)
                         if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
                             val colorTransfer = format.getInteger(MediaFormat.KEY_COLOR_TRANSFER)
-                            // 6 = PQ (SMPTE ST 2084), 7 = HLG (Hybrid Log Gamma)
                             if (colorTransfer == MediaFormat.COLOR_TRANSFER_ST2084 || colorTransfer == 6) {
                                 if (hdrTag == null) hdrTag = "HDR10"
                             } else if (colorTransfer == MediaFormat.COLOR_TRANSFER_HLG || colorTransfer == 7) {
@@ -172,7 +234,6 @@ object MediaFormatAnalyzer {
                             }
                         }
 
-                        // Check wide color gamut (BT.2020)
                         if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) {
                             val colorStandard = format.getInteger(MediaFormat.KEY_COLOR_STANDARD)
                             if (colorStandard == MediaFormat.COLOR_STANDARD_BT2020 || colorStandard == 6) {
@@ -180,7 +241,6 @@ object MediaFormatAnalyzer {
                             }
                         }
 
-                        // Check framerate
                         if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
                             val frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE)
                             if (frameRate >= 120) {
@@ -194,7 +254,6 @@ object MediaFormatAnalyzer {
                 }
                 extractor.release()
             } catch (e: Exception) {
-                // Fallback to MediaMetadataRetriever if extractor fails
                 try {
                     val retriever = MediaMetadataRetriever()
                     retriever.setDataSource(context, Uri.parse(uriString))
@@ -233,8 +292,17 @@ object MediaFormatAnalyzer {
             exposureBias = exposureBias,
             iso = iso,
             focalLength = focalLength,
+            cameraMake = cameraMake,
+            cameraModel = cameraModel,
+            lensModel = lensModel,
             deviceModel = deviceModel,
-            megapixels = megapixels
+            megapixels = megapixels,
+            actualWidth = actualWidth,
+            actualHeight = actualHeight,
+            fileSizeFormatted = fileSizeFormatted,
+            dateTakenFormatted = dateTakenFormatted,
+            dateModifiedFormatted = dateModifiedFormatted,
+            mimeType = mimeType
         )
     }
 }

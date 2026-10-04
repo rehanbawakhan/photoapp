@@ -47,6 +47,8 @@ fun VideosScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val settingsManager = remember { com.photoapp.data.settings.ThemeSettingsManager.getInstance(context) }
+    val videoGridColumns by settingsManager.videoGridColumns.collectAsState(initial = 3)
 
     var showMoveDialog by remember { mutableStateOf(false) }
     var showCopyDialog by remember { mutableStateOf(false) }
@@ -153,6 +155,7 @@ fun VideosScreen(
                             onPhotoClick = rememberedOnPhotoClick,
                             onPhotoLongClick = rememberedOnPhotoLongClick,
                             groupByDate = true,
+                            columns = videoGridColumns,
                             onSelectionChanged = rememberedOnSelectionChanged,
                             modifier = Modifier.fillMaxSize()
                         )
