@@ -1,4 +1,0 @@
-#Thu Aug 06 22:52:09 IST 2026
-base.0=D\:\\android apps\\photoapp\\app\\build\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
-path.0=classes.dex
-renamed.0=classes.dex
