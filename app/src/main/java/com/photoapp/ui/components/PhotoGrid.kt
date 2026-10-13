@@ -61,6 +61,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Immutable
 import com.photoapp.data.local.entities.PhotoEntity
 import com.photoapp.util.DateUtils
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 @Immutable
@@ -540,14 +563,17 @@ fun PhotoGrid(
     }
 }
 
-private data class ScrollbarData(
-    val showScrollbar: Boolean,
-    val totalItems: Int,
-    val thumbHeightPercent: Float,
-    val scrollPercent: Float,
-    val firstVisibleIndex: Int
-)
+private val ScrollHandleWidth = 28.dp
+private val ScrollHandleHeight = 52.dp
+private val ScrollHandleTouchWidth = 44.dp
+private val ScrollHandleTouchHeight = 64.dp
 
+/**
+ * Fast-scroll handle in the style of iOS Photos / Samsung One UI Gallery:
+ * a pill with up/down chevrons that slides in from the edge while the list moves,
+ * can be grabbed and dragged to jump through the timeline, shows a date bubble
+ * while dragging and ticks (haptics) every time the section label changes.
+ */
 @Composable
 fun VerticalScrollbar(
     state: LazyGridState,
@@ -555,201 +581,182 @@ fun VerticalScrollbar(
     accentColor: Color = MaterialTheme.colorScheme.primary,
     labelProvider: ((Int) -> String)? = null
 ) {
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val currentLabelProvider by rememberUpdatedState(labelProvider)
 
     var isDragging by remember { mutableStateOf(false) }
     var isScrolling by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+    var trackHeightPx by remember { mutableIntStateOf(0) }
+    var scrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    // Listen to every scroll offset change via snapshotFlow
-    LaunchedEffect(state, isDragging) {
-        if (isDragging) {
-            isScrolling = true
-        } else {
-            androidx.compose.runtime.snapshotFlow {
-                state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
-            }.collect {
+    // Reveal while the list moves, hide again shortly after it settles
+    LaunchedEffect(state) {
+        snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
+            .drop(1)
+            .collectLatest {
                 isScrolling = true
-                delay(2000)
+                delay(1500)
                 isScrolling = false
             }
+    }
+
+    // Only worth showing for long lists (more than ~2 screens of content)
+    val isLongList by remember(state) {
+        derivedStateOf {
+            val layoutInfo = state.layoutInfo
+            val visibleCount = layoutInfo.visibleItemsInfo.size
+            visibleCount > 0 && layoutInfo.totalItemsCount > visibleCount * 2
         }
     }
 
-    val showScrollbar by remember(state) {
+    // Smooth 0..1 position of the list, including the partial offset of the first row
+    val listFraction by remember(state) {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
             val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) false
-            else {
-                val totalItems = layoutInfo.totalItemsCount
-                val firstVisibleIndex = visibleItems.first().index
-                val lastVisibleIndex = visibleItems.last().index
-                val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
-                visibleCount < totalItems
+            when {
+                visibleItems.isEmpty() -> 0f
+                !state.canScrollBackward -> 0f
+                !state.canScrollForward -> 1f
+                else -> {
+                    val first = visibleItems.first()
+                    val itemsInFirstRow = visibleItems.count { it.row == first.row }.coerceAtLeast(1)
+                    val rowProgress = if (first.size.height > 0) {
+                        state.firstVisibleItemScrollOffset.toFloat() / first.size.height
+                    } else 0f
+                    val position = state.firstVisibleItemIndex + rowProgress * itemsInFirstRow
+                    val scrollableItems = (layoutInfo.totalItemsCount - visibleItems.size).coerceAtLeast(1)
+                    (position / scrollableItems).coerceIn(0f, 1f)
+                }
             }
         }
     }
 
-    val thumbHeightPercent by remember(state) {
-        derivedStateOf {
-            val layoutInfo = state.layoutInfo
-            val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) 1f
-            else {
-                val totalItems = layoutInfo.totalItemsCount
-                val firstVisibleIndex = visibleItems.first().index
-                val lastVisibleIndex = visibleItems.last().index
-                val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
-                (visibleCount.toFloat() / totalItems.toFloat()).coerceIn(0.1f, 0.9f)
-            }
+    val currentLabel by remember(state) {
+        derivedStateOf { currentLabelProvider?.invoke(state.firstVisibleItemIndex).orEmpty() }
+    }
+
+    // Haptic tick each time the dragged-to section changes
+    LaunchedEffect(currentLabel) {
+        if (isDragging && currentLabel.isNotEmpty()) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
     }
 
-    val scrollPercentState = remember(state) {
-        derivedStateOf {
-            val layoutInfo = state.layoutInfo
-            val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) 0f
-            else {
-                val totalItems = layoutInfo.totalItemsCount
-                val firstVisibleIndex = visibleItems.first().index
-                val lastVisibleIndex = visibleItems.last().index
-                val visibleCount = lastVisibleIndex - firstVisibleIndex + 1
-                firstVisibleIndex.toFloat() / (totalItems - visibleCount).coerceAtLeast(1)
-            }
-        }
-    }
+    val handleScale by animateFloatAsState(
+        targetValue = if (isDragging) 1.12f else 1f,
+        animationSpec = tween(150),
+        label = "scrollHandleScale"
+    )
 
-    val firstVisibleIndexState = remember(state) {
-        derivedStateOf {
-            val visibleItems = state.layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) 0 else visibleItems.first().index
-        }
-    }
-
-    if (!showScrollbar) return
-
-    val currentScrollLabel by remember(labelProvider) {
-        derivedStateOf {
-            val provider = labelProvider
-            if (provider == null) ""
-            else {
-                provider(firstVisibleIndexState.value)
-            }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = isScrolling,
-        enter = fadeIn(animationSpec = tween(300)),
-        exit = fadeOut(animationSpec = tween(300)),
-        modifier = modifier
+    Box(
+        modifier = modifier.onSizeChanged { trackHeightPx = it.height }
     ) {
-        Box(
+        AnimatedVisibility(
+            visible = isLongList && (isScrolling || isDragging),
+            enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)),
+            exit = slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300)),
             modifier = Modifier
-                .width(180.dp) // Touch grab width + space for bubble
-                .fillMaxHeight()
-                .padding(vertical = 4.dp)
+                .align(Alignment.TopEnd)
+                .offset {
+                    val handleHeightPx = ScrollHandleTouchHeight.toPx()
+                    val range = (trackHeightPx - handleHeightPx).coerceAtLeast(0f)
+                    val fraction = if (isDragging) dragFraction else listFraction
+                    IntOffset(0, (range * fraction).roundToInt())
+                }
         ) {
-            // Drag handling container aligned to the right (overlaying track and thumb)
-            var scrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Date bubble next to the handle while dragging
+                AnimatedVisibility(
+                    visible = isDragging && currentLabel.isNotEmpty(),
+                    enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.85f),
+                    exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.85f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .shadow(6.dp, RoundedCornerShape(50))
+                            .background(
+                                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
+                                shape = RoundedCornerShape(50)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = currentLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                            maxLines = 1
+                        )
+                    }
+                }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(36.dp) // Larger touch target
-                    .fillMaxHeight()
-                    .pointerInput(state) {
-                        detectDragGestures(
-                            onDragStart = { isDragging = true },
-                            onDragEnd = { isDragging = false },
-                            onDragCancel = { isDragging = false },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                val y = change.position.y
-                                val height = size.height
-                                if (height > 0) {
-                                    val touchPercent = (y / height).coerceIn(0f, 1f)
+                // Grabbable handle (touch area is larger than the visible pill)
+                Box(
+                    contentAlignment = Alignment.CenterEnd,
+                    modifier = Modifier
+                        .size(ScrollHandleTouchWidth, ScrollHandleTouchHeight)
+                        .pointerInput(state) {
+                            detectVerticalDragGestures(
+                                onDragStart = {
+                                    dragFraction = listFraction
+                                    isDragging = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                onDragEnd = { isDragging = false },
+                                onDragCancel = { isDragging = false },
+                                onVerticalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    val range = (trackHeightPx - size.height).toFloat()
                                     val totalItems = state.layoutInfo.totalItemsCount
-                                    val targetIndex = (touchPercent * totalItems).toInt().coerceIn(0, totalItems - 1)
-                                    scrollJob?.cancel()
-                                    scrollJob = coroutineScope.launch {
-                                        state.scrollToItem(targetIndex, 0)
+                                    if (range > 0f && totalItems > 0) {
+                                        dragFraction = (dragFraction + dragAmount / range).coerceIn(0f, 1f)
+                                        val targetIndex = (dragFraction * (totalItems - 1)).roundToInt()
+                                        scrollJob?.cancel()
+                                        scrollJob = coroutineScope.launch {
+                                            state.scrollToItem(targetIndex)
+                                        }
                                     }
                                 }
-                            }
-                        )
-                    }
-            )
-
-            // Track (Centered inside the touch target area)
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(4.dp)
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(2.dp)
-                    )
-            )
-
-            // Thumb
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(thumbHeightPercent)
-                    .width(8.dp)
-                    .align(Alignment.TopEnd)
-                    .padding(end = 14.dp)
-                    .graphicsLayer {
-                        val percent = scrollPercentState.value
-                        val parentHeight = size.height / thumbHeightPercent.coerceAtLeast(0.01f)
-                        val thumbHeight = size.height
-                        val maxTranslation = parentHeight - thumbHeight
-                        translationY = maxTranslation * percent
-                    }
-                    .background(
-                        color = accentColor,
-                        shape = RoundedCornerShape(4.dp)
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(4.dp)
-                    )
-            )
-
-            // Date/Label Bubble
-            if (currentScrollLabel.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .graphicsLayer {
-                            val percent = scrollPercentState.value
-                            val parentHeight = size.height / thumbHeightPercent.coerceAtLeast(0.01f)
-                            val thumbHeight = size.height
-                            val maxTranslation = parentHeight - thumbHeight
-                            translationY = maxTranslation * percent + (thumbHeight / 2) - 18.dp.toPx()
+                            )
                         }
-                        .padding(end = 36.dp) // Positioned to the left of the scroll handle
-                        .background(
-                            color = Color(0xFF1E1E1E).copy(alpha = 0.9f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = Color(0xFF333333),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(
-                        text = currentScrollLabel,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = handleScale
+                                scaleY = handleScale
+                            }
+                            .size(ScrollHandleWidth, ScrollHandleHeight)
+                            .shadow(4.dp, RoundedCornerShape(50))
+                            .background(
+                                color = if (isDragging) accentColor else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                shape = RoundedCornerShape(50)
+                            )
+                    ) {
+                        val chevronTint = if (isDragging) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowUp,
+                            contentDescription = null,
+                            tint = chevronTint,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = chevronTint,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
